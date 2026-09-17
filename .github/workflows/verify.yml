@@ -1,0 +1,16 @@
+name: Verify gateway
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n gateway/compose.sh && bash -n gateway/reload.sh
+      - name: Validate routing and Compose
+        run: |
+          set -euo pipefail
+          docker compose --env-file gateway/gateway.env.example -f gateway/compose.yaml config --quiet
+          docker build -t gateway-check gateway
+          docker run --rm -e ECHOOO_ADDRESS=echooo.example.com -e SHADOWTABLE_DOMAIN=table.example.com -e ACME_EMAIL=admin@example.com -v "$PWD/gateway/Caddyfile:/etc/caddy/Caddyfile:ro" gateway-check caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile

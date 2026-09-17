@@ -1,0 +1,16 @@
+{
+    email {$ACME_EMAIL}
+}
+{$ECHOOO_ADDRESS} {
+    @setup path /api/auth/setup /api/auth/setup/*
+    respond @setup "Owner setup is available only on the server." 403
+    request_body {
+        max_size 25MB
+    }
+    reverse_proxy echooo-upstream:8000 {
+        flush_interval -1
+    }
+}
+{$SHADOWTABLE_DOMAIN} {
+    reverse_proxy shadowtable-upstream:8787
+}
