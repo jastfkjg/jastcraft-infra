@@ -6,6 +6,7 @@ services:
     environment:
       ECHOOO_ADDRESS: ${ECHOOO_ADDRESS:?Set echooo domain}
       SHADOWTABLE_DOMAIN: ${SHADOWTABLE_DOMAIN:?Set ShadowTable domain}
+      WENLV_DOMAIN: ${WENLV_DOMAIN:?Set Wenlv domain}
       ACME_EMAIL: ${ACME_EMAIL:?Set certificate contact email}
     ports:
       - '80:80'
@@ -14,7 +15,7 @@ services:
       - /opt/gateway/config:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
-    networks: [echooo, shadowtable]
+    networks: [echooo, shadowtable, wenlv]
     logging:
       driver: json-file
       options:
@@ -27,6 +28,9 @@ networks:
   shadowtable:
     external: true
     name: shadowtable_proxy
+  wenlv:
+    external: true
+    name: wenlv_proxy
 volumes:
   caddy_data:
     external: true

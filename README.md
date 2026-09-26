@@ -9,6 +9,7 @@
 - `/opt/echooo`、`/opt/shadowtable`：各自业务发布与持久数据。
 - `echooo_proxy`：仅网关及 echooo 应用加入；数据库保留 echooo 默认网络。
 - `shadowtable_proxy`：仅网关及 ShadowTable 加入。
+- `wenlv_proxy`：仅网关及文旅拾光 Web 加入，转发到 `wenlv-upstream:80`；首次接入见 [文旅拾光接入步骤](gateway/WENLV.md)。
 - 只有网关发布 80/443；业务和数据库不发布宿主机端口。
 
 需要 Linux、Docker Engine、Compose >=2.24、Bash、flock、curl、Python3、tar。基础设施首次迁移由有 Docker 权限的管理员执行。Docker 权限等同于宿主机高权限。
@@ -46,6 +47,7 @@ sudo install -d -o deploy -g deploy -m 700 /opt/gateway /opt/gateway/config
 # 在此将仓库 clone/上传到 /opt/gateway/repo
 docker network inspect echooo_proxy >/dev/null 2>&1 || docker network create echooo_proxy
 docker network inspect shadowtable_proxy >/dev/null 2>&1 || docker network create shadowtable_proxy
+docker network inspect wenlv_proxy >/dev/null 2>&1 || docker network create wenlv_proxy
 cp /opt/gateway/repo/gateway/gateway.env.example /opt/gateway/gateway.env
 chmod 600 /opt/gateway/gateway.env
 cp /opt/gateway/repo/gateway/Caddyfile /opt/gateway/config/Caddyfile
@@ -57,6 +59,7 @@ cp /opt/gateway/repo/gateway/Caddyfile /opt/gateway/config/Caddyfile
 - `CADDY_DATA_VOLUME`、`CADDY_CONFIG_VOLUME`：上一步实际查到的卷名。网关将它们作为 external 卷接管，后续不依赖 echooo Compose 声明。
 - `ECHOOO_ADDRESS`：现有 HTTPS 域名；如果 echooo 仍以 HTTP IP 提供服务，填原 `http://IP` 保持原入口。HTTPS 升级另行同步调整此项和 echooo origin/cookie。
 - `SHADOWTABLE_DOMAIN`：牌桌正式域名（不带协议或路径）。两个业务不能使用相同域名。
+- `WENLV_DOMAIN`：文旅拾光 HTTPS 域名（不带协议或路径），与另两个站点不同。新版 Compose 要求该值；已有网关升级前先配置并创建 `wenlv_proxy`。
 - `ACME_EMAIL`：真实证书联系邮箱。
 
 检查域名 A/AAAA、EC2 防火墙、安全组和 80/443。不要开放应用端口。

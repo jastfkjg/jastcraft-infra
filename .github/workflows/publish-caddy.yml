@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           docker build -t gateway-check gateway
-          docker run --rm -e ECHOOO_ADDRESS=echooo.example.com -e SHADOWTABLE_DOMAIN=table.example.com -e ACME_EMAIL=admin@example.com -v "$PWD/gateway/Caddyfile:/etc/caddy/Caddyfile:ro" gateway-check caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          docker run --rm -e ECHOOO_ADDRESS=echooo.example.com -e SHADOWTABLE_DOMAIN=table.example.com -e WENLV_DOMAIN=wenlv.example.com -e ACME_EMAIL=admin@example.com -v "$PWD/gateway/Caddyfile:/etc/caddy/Caddyfile:ro" gateway-check caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
       - uses: docker/build-push-action@v6
         id: build
         with:
