@@ -31,4 +31,16 @@ terraform fmt -check -recursive terraform
 
 `Verify infrastructure` 自动校验所有主机路由、部署故障边界与各 Terraform stack；执行 `init -backend=false` / `validate` 及 mock provider 的 plan 测试，不访问远程 state、不执行真实云资源 plan/apply。`Publish gateway image` 只发布镜像；`Deploy gateway` 手动选择主机和 immutable digest 后才更新网关。
 
+Provider 锁文件包含 GitHub Actions 的 `linux_amd64` 和本地 Apple Silicon 的 `darwin_arm64` 校验和。修改 provider 约束或新增 stack 后，在仓库根目录更新并提交锁文件：
+
+```bash
+for stack in terraform/stacks/*/*/*; do
+  terraform -chdir="$stack" init -backend=false -input=false
+  terraform -chdir="$stack" providers lock -platform=linux_amd64 -platform=darwin_arm64
+done
+git diff -- 'terraform/stacks/**/.terraform.lock.hcl'
+```
+
+该流程从官方 registry 验证各平台包，保留已有 provider 版本；有意升级时才给 `init` 添加 `-upgrade`。CI 保持 `-lockfile=readonly`，锁文件缺失或不匹配时应在本地修复并提交，再运行新提交上的工作流。
+
 新增主机时添加 `hosts` 清单、独立 Terraform stack、对应 GitHub Environment 和工作流目标选项。新增业务时添加 `gateway/routes/<业务>.caddy` 与 `scripts/render_host.py` 服务映射，并由业务仓库提供本地代理网络/别名。按主机选择服务，避免把所有业务写入每一台服务器的网关。
