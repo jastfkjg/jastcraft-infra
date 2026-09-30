@@ -1,0 +1,37 @@
+name: Deploy gateway
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Host target (configure its own GitHub Environment)
+        type: choice
+        required: true
+        options: [aws-prod-shared-01, aliyun-staging-shadowtable-01, aliyun-prod-shadowtable-01]
+      image:
+        description: Immutable Caddy image from Publish gateway image
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    environment: ${{ inputs.target }}
+    concurrency:
+      group: gateway-${{ inputs.target }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy selected host gateway
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          HOST_TARGET: ${{ inputs.target }}
+          GATEWAY_TARGET: ${{ vars.GATEWAY_TARGET }}
+          CADDY_IMAGE: ${{ inputs.image }}
+        run: bash scripts/publish_gateway.sh

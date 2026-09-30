@@ -1,0 +1,3 @@
+{$SHADOWTABLE_DOMAIN} {
+    reverse_proxy shadowtable-upstream:8787
+}

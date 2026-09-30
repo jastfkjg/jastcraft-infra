@@ -1,0 +1,7 @@
+[Unit]
+Description=Periodic host resource check
+[Timer]
+OnBootSec=5m
+OnUnitActiveSec=5m
+[Install]
+WantedBy=timers.target

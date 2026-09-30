@@ -1,16 +1,30 @@
-name: Verify gateway
+name: Verify infrastructure
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
-  validate:
+  gateway:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - run: bash -n gateway/compose.sh && bash -n gateway/reload.sh
-      - name: Validate routing and Compose
+      - run: bash scripts/verify.sh
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        stack: [aws/prod/shared-01, aliyun/prod/shadowtable-01, aliyun/staging/shadowtable-01]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.14.9'
+      - run: terraform fmt -check -recursive terraform
+      - name: Validate isolated stack without cloud credentials or state access
+        env:
+          STACK: ${{ matrix.stack }}
         run: |
-          set -euo pipefail
-          docker compose --env-file gateway/gateway.env.example -f gateway/compose.yaml config --quiet
-          docker build -t gateway-check gateway
-          docker run --rm -e ECHOOO_ADDRESS=echooo.example.com -e SHADOWTABLE_DOMAIN=table.example.com -e WENLV_DOMAIN=wenlv.example.com -e ACME_EMAIL=admin@example.com -v "$PWD/gateway/Caddyfile:/etc/caddy/Caddyfile:ro" gateway-check caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          terraform -chdir="terraform/stacks/$STACK" init -backend=false -input=false -lockfile=readonly
+          terraform -chdir="terraform/stacks/$STACK" validate
+          terraform -chdir="terraform/stacks/$STACK" test

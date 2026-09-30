@@ -1,0 +1,6 @@
+{$WENLV_DOMAIN} {
+    request_body {
+        max_size 27MB
+    }
+    reverse_proxy wenlv-upstream:80
+}

@@ -1,0 +1,8 @@
+{
+  "target": "aliyun-staging-shadowtable-01",
+  "cloud": "aliyun",
+  "environment": "staging",
+  "services": [
+    "shadowtable"
+  ]
+}

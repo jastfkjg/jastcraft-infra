@@ -1,0 +1,10 @@
+{
+  "target": "aws-prod-shared-01",
+  "cloud": "aws",
+  "environment": "prod",
+  "services": [
+    "echooo",
+    "shadowtable",
+    "wenlv"
+  ]
+}

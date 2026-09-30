@@ -1,0 +1,15 @@
+#cloud-config
+users:
+  - default
+  - name: ${deploy_user}
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${jsonencode(ssh_public_key)}
+write_files:
+  - path: /usr/local/sbin/jastcraft-bootstrap
+    permissions: '0700'
+    encoding: b64
+    content: ${bootstrap_base64}
+runcmd:
+  - [bash, /usr/local/sbin/jastcraft-bootstrap, ${jsonencode(deploy_user)}, ${jsonencode(services)}, ${jsonencode(host_target)}]

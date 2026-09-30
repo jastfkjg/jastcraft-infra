@@ -1,3 +1,5 @@
+> 本页适用于尚未启用hosts清单的旧共享网关。按主机模式请修改相应host.json的services，提交验证后使用 **Deploy gateway** 重建网关；不要再把站点加入全局Caddyfile。参见 [多云操作指南](../docs/multicloud.md)。
+
 # 为现有公共网关增加文旅拾光
 
 本流程只接入新站点，保留现有 Echooo/ShadowTable 域名、Caddy 镜像 digest 和证书卷。业务侧需要生产 Web 加入 `wenlv_proxy`，别名 `wenlv-upstream`，监听容器 80 端口。
