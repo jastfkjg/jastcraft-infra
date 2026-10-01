@@ -16,6 +16,8 @@
 
 主机 ID 按云厂商、地域、编号命名，不绑定业务或环境；`host.json` 中的 `services` 决定承载业务，`environment` 单独描述当前业务发布环境（两台目前均为 `prod`）。新增业务不需要改主机 ID。
 
+主机初始化 `host/bootstrap.sh` 支持 Ubuntu 22.04/24.04 和 Alibaba Cloud Linux 3（含 3.2104 LTS），自动选择 apt/dnf 安装流程；两种系统使用相同的部署账号、目录与目标标记。
+
 云资源使用独立 Terraform state；部署凭据按 GitHub Environment 隔离；每台主机保留自己的证书卷和 Docker bridge 网络。业务应用与数据库不映射公网端口。
 
 第一次使用、GitHub 配置、现有 EC2 接入、ECS 初始化、网关发布和备份启用，按照 **[多云操作指南](docs/multicloud.md)** 执行。

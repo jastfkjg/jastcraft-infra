@@ -1,6 +1,72 @@
 #!/usr/bin/env bash
-# Root-only, rerunnable bootstrap for Ubuntu 22.04/24.04; does not format disks or deploy apps.
+# Root-only, rerunnable bootstrap for Ubuntu 22.04/24.04 and Alibaba Cloud Linux 3.
+# Does not format disks, remove container data or deploy apps.
 set -euo pipefail
+
+compose_supported() {
+    local version
+    version=$(docker compose version --short 2>/dev/null) || return 1
+    python3 - "$version" <<'PY'
+import re, sys
+match = re.match(r'v?(\d+)\.(\d+)\.(\d+)', sys.argv[1])
+sys.exit(0 if match and tuple(map(int, match.groups())) >= (2, 24, 0) else 1)
+PY
+}
+
+install_runtime() {
+    local os_release=${1:-/etc/os-release}
+    local ID='' VERSION_ID='' VERSION_CODENAME=''
+    local install_engine=false install_compose=false
+    . "$os_release"
+    case "$ID:$VERSION_ID" in
+        ubuntu:22.04|ubuntu:24.04|alinux:3|alinux:3.*) ;;
+        *) echo 'Use Ubuntu 22.04/24.04 or Alibaba Cloud Linux 3.' >&2; return 1 ;;
+    esac
+    if ! command -v docker >/dev/null; then
+        install_engine=true
+    elif [[ "$(docker --version)" != 'Docker version '* ]]; then
+        echo 'The existing docker command is not Docker Engine; configure Docker CE separately.' >&2
+        return 1
+    fi
+    if [[ "$ID" == ubuntu ]]; then
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y ca-certificates curl gnupg python3 sqlite3 tar util-linux
+    else
+        dnf -y install ca-certificates curl python3 sqlite tar util-linux
+    fi
+    compose_supported || install_compose=true
+    if [[ "$install_engine" == true || "$install_compose" == true ]]; then
+        if [[ "$ID" == ubuntu ]]; then
+            install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+            chmod a+r /etc/apt/keyrings/docker.asc
+            printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu %s stable\n' "$(dpkg --print-architecture)" "$VERSION_CODENAME" > /etc/apt/sources.list.d/docker.list
+            apt-get update
+            if [[ "$install_engine" == true ]]; then
+                apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            else
+                apt-get install -y docker-compose-plugin
+            fi
+        else
+            dnf -y install dnf-plugins-core
+            dnf config-manager --add-repo=https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+            dnf -y install dnf-plugin-releasever-adapter --repo alinux3-plus
+            if [[ "$install_engine" == true ]]; then
+                dnf -y install device-mapper-persistent-data lvm2
+                dnf -y install --nobest docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            else
+                dnf -y install --nobest docker-compose-plugin
+            fi
+        fi
+    fi
+    compose_supported || { echo 'Docker Compose 2.24+ required; check the package installation.' >&2; return 1; }
+    docker compose version
+}
+
+# Sourcing exposes the runtime functions without installing packages or preparing a host.
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
+
 [[ "$EUID" == 0 ]] || { echo 'Run bootstrap with sudo/root' >&2; exit 1; }
 deploy_user=${1:-deploy}
 services=${2:-shadowtable}
@@ -12,20 +78,7 @@ cloud=${BASH_REMATCH[1]}
 app_target="$cloud-$app_environment"
 [[ "$deploy_user" =~ ^[a-z_][a-z0-9_-]*$ ]]
 [[ "$services" =~ ^(echooo|shadowtable|wenlv)(,(echooo|shadowtable|wenlv))*$ ]]
-. /etc/os-release
-[[ "$ID" == ubuntu && ( "$VERSION_ID" == 22.04 || "$VERSION_ID" == 24.04 ) ]] || { echo 'Use Ubuntu 22.04 or 24.04' >&2; exit 1; }
-export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y ca-certificates curl gnupg python3 sqlite3 tar util-linux
-if ! command -v docker >/dev/null; then
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-    chmod a+r /etc/apt/keyrings/docker.asc
-    printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu %s stable\n' "$(dpkg --print-architecture)" "$VERSION_CODENAME" > /etc/apt/sources.list.d/docker.list
-    apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-fi
-docker compose version
+install_runtime
 systemctl enable --now docker
 id "$deploy_user" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$deploy_user"
 usermod -aG docker "$deploy_user"

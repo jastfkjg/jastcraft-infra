@@ -33,15 +33,22 @@ jobs:
           password: ${{ secrets.ACR_PASSWORD }}
       - name: Validate all host routes and deployment behavior
         run: bash scripts/verify.sh
-      - uses: docker/build-push-action@v6
+      - name: Build and publish with Docker Hub retry
         id: build
-        with:
-          context: gateway
-          platforms: linux/amd64,linux/arm64
-          provenance: false
-          sbom: false
-          outputs: type=image,push=true,oci-mediatypes=false
-          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
+        env:
+          IMAGE_TAG: ${{ steps.image.outputs.name }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          metadata="$RUNNER_TEMP/gateway-build-metadata.json"
+          bash scripts/retry_docker_build.sh buildx build \
+            --progress=plain \
+            --platform linux/amd64,linux/arm64 \
+            --provenance=false --sbom=false \
+            --output type=image,push=true,oci-mediatypes=false \
+            --tag "$IMAGE_TAG" --metadata-file "$metadata" gateway
+          digest=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' "$metadata")
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
       - name: Record immutable image
         env:
           IMAGE: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}

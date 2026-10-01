@@ -57,13 +57,13 @@ Terraform 目录现在是 `terraform/stacks/aws/singapore/01` 与 `terraform/sta
 
 ### 2.2 手动准备新的 ECS/EC2
 
-选用 Ubuntu 22.04/24.04，设置管理机和 GitHub runner 出口的 SSH 访问规则，公网仅开放80/443业务入口。先从管理机上传本仓库或使用可信方式 clone，再执行：
+支持 Ubuntu 22.04/24.04 和 Alibaba Cloud Linux 3（含 3.2104 LTS），脚本自动选择 apt/dnf。设置管理机和 GitHub runner 出口的 SSH 访问规则，公网仅开放80/443业务入口。先从管理机上传本仓库或使用可信方式 clone，再执行：
 
 ```bash
 sudo bash host/bootstrap.sh deploy shadowtable aliyun-beijing-01 prod
 ```
 
-新加坡主机使用 `sudo bash host/bootstrap.sh deploy echooo,shadowtable,wenlv aws-singapore-01 prod`。第四个参数显式描述业务环境，默认 `prod`；主机 ID 不再推导业务环境。初始化安装 Docker/Compose、Python、SQLite 等工具，创建账号、目录和目标标记，不格式化磁盘、不发布业务。将专用部署公钥配置到 `deploy` 的 authorized_keys，重新登录使 Docker 组生效，检查 `docker info` 和 `docker compose version`（至少2.24）。已有数据目录保留原所有者。
+新加坡主机使用 `sudo bash host/bootstrap.sh deploy echooo,shadowtable,wenlv aws-singapore-01 prod`。第四个参数显式描述业务环境，默认 `prod`；主机 ID 不再推导业务环境。初始化安装 Docker/Compose、Python、SQLite 等工具，创建账号、目录和目标标记，不格式化磁盘、不发布业务。将专用部署公钥配置到 `deploy` 的 authorized_keys，重新登录使 Docker 组生效，检查 `docker info` 和 `docker compose version`（至少2.24）。已有数据目录保留原所有者。 Alibaba Cloud Linux 3 使用[阿里云 Docker CE 镜像源和 releasever 兼容插件](https://help.aliyun.com/zh/ecs/user-guide/install-and-use-docker)。脚本不会自动卸载 Docker、Podman 或删除容器数据；已有 Docker 可用时仅按需安装 Compose 插件，要求 Compose >=2.24。
 
 ### 2.3 使用 Terraform 新建主机（可选）
 
@@ -75,7 +75,7 @@ cp terraform.tfvars.example terraform.tfvars
 cp backend.tfbackend.example backend.tfbackend
 ```
 
-填写 region、可用区、当地可用的实例类型、Ubuntu镜像ID、SSH公钥、管理机/runner真实出口CIDR、全局唯一的备份桶名称；部署用户默认 `deploy`。示例值不能直接 apply，`ssh_cidrs` 不允许 `0.0.0.0/0`。只有80/443公网入口被创建。ARM64镜像需选择匹配的实例架构；业务镜像同时包含amd64/arm64。
+填写 region、可用区、当地可用的实例类型、所选系统镜像ID（Ubuntu 22.04/24.04 或 Alibaba Cloud Linux 3）、SSH公钥、管理机/runner真实出口CIDR、全局唯一的备份桶名称；部署用户默认 `deploy`。示例值不能直接 apply，`ssh_cidrs` 不允许 `0.0.0.0/0`。只有80/443公网入口被创建。ARM64镜像需选择匹配的实例架构；业务镜像同时包含amd64/arm64。
 
 state 存储必须先存在，独立于业务备份桶：
 
@@ -114,6 +114,8 @@ chmod 600 /opt/gateway/gateway.env
 编辑真实域名、邮箱和独立卷名；把占位 `CADDY_IMAGE` 替换为合法不可变镜像。服务器部署用户执行 `docker login <ACR_REGISTRY>`，使用只读拉取凭据。各主机使用自己的证书卷；已有EC2保留原卷名，禁止 `down -v`。
 
 infra Actions → **Publish gateway image**，分支main，成功后复制Summary中的 `image@sha256`。也可以复用已保留的旧Caddy digest。
+
+验证与发布构建遇到 Docker Hub 令牌或镜像元数据端点的 HTTP 500/502/503/504 时，最多尝试三次，重试前分别等待10秒、20秒。持续失败时稍后重新运行工作流；认证拒绝、标签不存在或其他构建错误会立即失败。
 
 infra Actions → **Deploy gateway** → Run workflow，分支main，选择主机ID并填写digest。流程校验主机标记/env权限/域名/image，按清单生成Caddyfile与Compose，创建本机所需proxy网络和证书卷，验证候选配置，再启动网关。失败会恢复原网关配置/镜像；首次失败停掉候选网关。不会启停任何业务容器。
 

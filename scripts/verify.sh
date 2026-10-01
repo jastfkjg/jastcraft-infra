@@ -6,7 +6,7 @@ for script in gateway/*.sh host/*.sh scripts/*.sh; do bash -n "$script"; done
 python3 -m unittest discover -s tests
 candidate=$(mktemp -d)
 trap 'rm -rf "$candidate"' EXIT
-docker build -t gateway-check gateway
+bash scripts/retry_docker_build.sh build --progress=plain -t gateway-check gateway
 docker compose --env-file gateway/gateway.env.example -f gateway/compose.yaml config --quiet
 docker run --rm -e ECHOOO_ADDRESS=echooo.example.com -e SHADOWTABLE_DOMAIN=table.example.com -e WENLV_DOMAIN=wenlv.example.com -e ACME_EMAIL=admin@example.com -v "$root/gateway/Caddyfile:/etc/caddy/Caddyfile:ro" gateway-check caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 for manifest in hosts/*/*/*/host.json; do
