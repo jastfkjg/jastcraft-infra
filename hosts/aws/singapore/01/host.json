@@ -1,6 +1,8 @@
 {
-  "target": "aws-prod-shared-01",
+  "target": "aws-singapore-01",
   "cloud": "aws",
+  "location": "singapore",
+  "region": "ap-southeast-1",
   "environment": "prod",
   "services": [
     "echooo",

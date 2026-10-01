@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        stack: [aws/prod/shared-01, aliyun/prod/shadowtable-01, aliyun/staging/shadowtable-01]
+        stack: [aws/singapore/01, aliyun/beijing/01]
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3

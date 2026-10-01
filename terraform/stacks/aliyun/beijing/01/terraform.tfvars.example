@@ -1,9 +1,9 @@
 # These values describe a NEW host. Existing resources require inventory/import first.
-name = "aws-prod-shared-01"
-region = "ap-southeast-1"
-availability_zone = "ap-southeast-1a"
+name = "aliyun-beijing-01"
+region = "cn-beijing"
+availability_zone = "REPLACE_WITH_AVAILABLE_ZONE_IN_CN_BEIJING"
 image_id = "REPLACE_WITH_UBUNTU_24_04_IMAGE_ID"
-instance_type = "t3.small"
+instance_type = "REPLACE_WITH_AVAILABLE_ECS_INSTANCE_TYPE"
 ssh_public_key = "ssh-ed25519 REPLACE_WITH_PUBLIC_KEY"
 ssh_cidrs = ["203.0.113.10/32"] # Replace with admin/runner egress CIDRs.
 backup_bucket_name = "REPLACE_WITH_GLOBALLY_UNIQUE_PRIVATE_BUCKET"

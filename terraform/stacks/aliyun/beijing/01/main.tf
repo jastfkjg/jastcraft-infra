@@ -7,12 +7,13 @@ terraform {
 }
 provider "alicloud" { region = var.region }
 locals {
-  host = jsondecode(file("${path.module}/../../../../../hosts/aliyun/prod/shadowtable-01/host.json"))
+  host = jsondecode(file("${path.module}/../../../../../hosts/aliyun/beijing/01/host.json"))
   cloud_init = templatefile("${path.module}/../../../../../host/cloud-init.yaml.tftpl", {
     deploy_user      = var.deploy_user
     ssh_public_key   = var.ssh_public_key
     bootstrap_base64 = base64encode(file("${path.module}/../../../../../host/bootstrap.sh"))
     host_target      = local.host.target
+    app_environment  = local.host.environment
     services         = join(",", local.host.services)
   })
 }

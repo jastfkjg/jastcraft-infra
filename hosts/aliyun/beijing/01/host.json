@@ -1,6 +1,8 @@
 {
-  "target": "aliyun-prod-shadowtable-01",
+  "target": "aliyun-beijing-01",
   "cloud": "aliyun",
+  "location": "beijing",
+  "region": "cn-beijing",
   "environment": "prod",
   "services": [
     "shadowtable"

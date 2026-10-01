@@ -1,23 +1,24 @@
 terraform {
   required_version = ">= 1.10, < 2.0"
-  backend "oss" {}
+  backend "s3" {}
   required_providers {
-    alicloud = { source = "aliyun/alicloud", version = "~> 1.252" }
+    aws = { source = "hashicorp/aws", version = "~> 6.0" }
   }
 }
-provider "alicloud" { region = var.region }
+provider "aws" { region = var.region }
 locals {
-  host = jsondecode(file("${path.module}/../../../../../hosts/aliyun/staging/shadowtable-01/host.json"))
+  host = jsondecode(file("${path.module}/../../../../../hosts/aws/singapore/01/host.json"))
   cloud_init = templatefile("${path.module}/../../../../../host/cloud-init.yaml.tftpl", {
     deploy_user      = var.deploy_user
     ssh_public_key   = var.ssh_public_key
     bootstrap_base64 = base64encode(file("${path.module}/../../../../../host/bootstrap.sh"))
     host_target      = local.host.target
+    app_environment  = local.host.environment
     services         = join(",", local.host.services)
   })
 }
 module "host" {
-  source             = "../../../../modules/aliyun-host"
+  source             = "../../../../modules/aws-host"
   name               = var.name
   image_id           = var.image_id
   instance_type      = var.instance_type
@@ -29,9 +30,6 @@ module "host" {
   subnet_cidr        = var.subnet_cidr
   disk_size_gb       = var.disk_size_gb
   image_repositories = var.image_repositories
-  bandwidth_mbps     = var.bandwidth_mbps
-  acr_instance_id    = var.acr_instance_id
-  acr_namespace      = var.acr_namespace
   cloud_init         = local.cloud_init
 }
 output "host_address" { value = module.host.host_address }

@@ -1,7 +1,0 @@
-bucket = "REPLACE_WITH_EXISTING_STATE_BUCKET"
-prefix = "jastcraft/aliyun/staging/shadowtable-01"
-key = "terraform.tfstate"
-region = "cn-hangzhou"
-encrypt = true
-tablestore_endpoint = "https://REPLACE_WITH_STATE_LOCK_INSTANCE.cn-hangzhou.ots.aliyuncs.com"
-tablestore_table = "terraform_lock" # Pre-create String primary key LockID.

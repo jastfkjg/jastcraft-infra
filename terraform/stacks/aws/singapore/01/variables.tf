@@ -34,7 +34,13 @@ variable "image_repositories" {
   default     = []
   description = "Optional ECR repository names. Existing ACR can continue to serve AWS hosts."
 }
-variable "region" { type = string }
+variable "region" {
+  type = string
+  validation {
+    condition     = var.region == local.host.region
+    error_message = "The region must match the selected host manifest."
+  }
+}
 variable "deploy_user" {
   type    = string
   default = "deploy"

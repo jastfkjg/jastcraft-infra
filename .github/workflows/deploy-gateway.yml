@@ -6,7 +6,7 @@ on:
         description: Host target (configure its own GitHub Environment)
         type: choice
         required: true
-        options: [aws-prod-shared-01, aliyun-staging-shadowtable-01, aliyun-prod-shadowtable-01]
+        options: [aws-singapore-01, aliyun-beijing-01]
       image:
         description: Immutable Caddy image from Publish gateway image
         type: string

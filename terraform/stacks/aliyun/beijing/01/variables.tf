@@ -50,7 +50,13 @@ variable "image_repositories" {
     error_message = "Optional enterprise repositories require an existing acr_instance_id."
   }
 }
-variable "region" { type = string }
+variable "region" {
+  type = string
+  validation {
+    condition     = var.region == local.host.region
+    error_message = "The region must match the selected host manifest."
+  }
+}
 variable "deploy_user" {
   type    = string
   default = "deploy"

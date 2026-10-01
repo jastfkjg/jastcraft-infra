@@ -4,9 +4,12 @@ set -euo pipefail
 [[ "$EUID" == 0 ]] || { echo 'Run bootstrap with sudo/root' >&2; exit 1; }
 deploy_user=${1:-deploy}
 services=${2:-shadowtable}
-host_target=${3:?Usage: bootstrap.sh DEPLOY_USER SERVICES HOST_TARGET}
-[[ "$host_target" =~ ^(aws|aliyun)-(prod|staging)-[a-z0-9-]+$ ]]
-app_target="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
+host_target=${3:?Usage: bootstrap.sh DEPLOY_USER SERVICES HOST_TARGET [APP_ENVIRONMENT]}
+app_environment=${4:-prod}
+[[ "$host_target" =~ ^(aws|aliyun)-([a-z0-9]+)-([0-9]{2})$ ]]
+cloud=${BASH_REMATCH[1]}
+[[ "$app_environment" =~ ^(prod|staging)$ ]]
+app_target="$cloud-$app_environment"
 [[ "$deploy_user" =~ ^[a-z_][a-z0-9_-]*$ ]]
 [[ "$services" =~ ^(echooo|shadowtable|wenlv)(,(echooo|shadowtable|wenlv))*$ ]]
 . /etc/os-release

@@ -4,22 +4,23 @@
 
 | 层次 | 目录 | 管理边界 |
 | --- | --- | --- |
-| 云资源 | `terraform/modules`、`terraform/stacks/<云>/<环境>/<主机>` | VPC、网络规则、虚拟机、加密系统盘、私有备份桶及实例角色；可选镜像仓库 |
-| 主机运行环境 | `host`、`hosts/<云>/<环境>/<主机>` | Docker、部署账号、目录、主机目标标记、备份与基础健康检查 |
+| 云资源 | `terraform/modules`、`terraform/stacks/<云>/<地域>/<编号>` | VPC、网络规则、虚拟机、加密系统盘、私有备份桶及实例角色；可选镜像仓库 |
+| 主机运行环境 | `host`、`hosts/<云>/<地域>/<编号>` | Docker、部署账号、目录、主机目标标记、备份与基础健康检查 |
 | 公共网关 | `gateway`、`scripts` | 仅该主机的域名、Caddy 路由、证书卷和本地代理网络 |
 | 业务发布 | 各业务仓库 | 已测试镜像的手动发布、业务数据与兼容性迁移 |
 
 当前目标清单：
 
-- `aws-prod-shared-01`：echooo、ShadowTable、文旅拾光共享 EC2。
-- `aliyun-staging-shadowtable-01`：独立测试 ECS，仅接入 ShadowTable。
-- `aliyun-prod-shadowtable-01`：正式 ECS，仅接入 ShadowTable。
+- `aws-singapore-01`：新加坡 EC2（`ap-southeast-1`），当前网关接入 echooo、ShadowTable、文旅拾光。
+- `aliyun-beijing-01`：北京 ECS（`cn-beijing`），当前网关接入 ShadowTable。
+
+主机 ID 按云厂商、地域、编号命名，不绑定业务或环境；`host.json` 中的 `services` 决定承载业务，`environment` 单独描述当前业务发布环境（两台目前均为 `prod`）。新增业务不需要改主机 ID。
 
 云资源使用独立 Terraform state；部署凭据按 GitHub Environment 隔离；每台主机保留自己的证书卷和 Docker bridge 网络。业务应用与数据库不映射公网端口。
 
 第一次使用、GitHub 配置、现有 EC2 接入、ECS 初始化、网关发布和备份启用，按照 **[多云操作指南](docs/multicloud.md)** 执行。
 
-已有 EC2 不需要重建或重新初始化。原 `gateway/compose.sh` 在尚未启用主机清单时继续使用旧配置；启用后自动读取 `/opt/gateway/config/compose.yaml`。原证书卷名字必须保留。历史首次拆分方案见 [旧网关迁移指南](docs/legacy-gateway-migration.md)。
+现有 EC2/ECS 不需要重建或重新初始化。主机改名时按操作指南更新 GitHub Environment 和服务器标记，保留真实证书卷及已有 Terraform state 配置。原 `gateway/compose.sh` 在尚未启用主机清单时继续使用旧配置；启用后自动读取 `/opt/gateway/config/compose.yaml`。原证书卷名字必须保留。历史首次拆分方案见 [旧网关迁移指南](docs/legacy-gateway-migration.md)。
 
 本地检查：
 

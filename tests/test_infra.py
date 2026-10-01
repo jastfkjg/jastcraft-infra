@@ -22,7 +22,7 @@ OLD_IMAGE = 'registry.cn-hangzhou.aliyuncs.com/example/caddy@sha256:' + 'b'*64
 class HostTest(unittest.TestCase):
     def test_selected_host_contains_only_its_services(self):
         with tempfile.TemporaryDirectory() as directory:
-            compose = render('aliyun-prod-shadowtable-01', directory)
+            compose = render('aliyun-beijing-01', directory)
             self.assertEqual(set(compose['networks']), {'shadowtable'})
             self.assertEqual(set(compose['services']['caddy']['environment']), {'ACME_EMAIL','SHADOWTABLE_DOMAIN'})
             text=(Path(directory)/'Caddyfile').read_text()
@@ -31,14 +31,27 @@ class HostTest(unittest.TestCase):
             self.assertNotIn('wenlv',text)
     def test_shared_host_preserves_routes_and_setup_guard(self):
         with tempfile.TemporaryDirectory() as directory:
-            compose=render('aws-prod-shared-01',directory)
+            compose=render('aws-singapore-01',directory)
             self.assertEqual(set(compose['networks']), {'echooo','shadowtable','wenlv'})
             text=(Path(directory)/'Caddyfile').read_text()
             self.assertIn('/api/auth/setup',text)
             self.assertIn('flush_interval -1',text)
     def test_unknown_or_path_target_rejected(self):
-        for value in ['missing','../../gateway','aliyun-prod-shadowtable-01\n']:
+        for value in ['missing','../../gateway','aliyun-beijing-01\n']:
             with self.assertRaises(ValueError): load_host(value)
+    def test_host_location_is_independent_of_business_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            host=root/'hosts/aliyun/beijing/01/host.json'
+            host.parent.mkdir(parents=True)
+            config={'target':'aliyun-beijing-01','cloud':'aliyun','location':'beijing',
+                    'region':'cn-beijing','environment':'staging','services':['shadowtable']}
+            host.write_text(json.dumps(config))
+            self.assertEqual(load_host(config['target'], root)[1]['environment'], 'staging')
+            for field,value in [('location','singapore'),('cloud','aws'),('environment','beijing')]:
+                with self.subTest(field=field):
+                    host.write_text(json.dumps(dict(config, **{field:value})))
+                    with self.assertRaises(ValueError): load_host(config['target'], root)
     def test_missing_registry_digest_rejected(self):
         for value in ['caddy:latest', IMAGE+'\n', 'https://'+IMAGE]:
             with self.assertRaises(ValueError): image_reference(value)
@@ -68,7 +81,7 @@ class GatewayDeploymentTest(unittest.TestCase):
         self.gateway=self.base/'gateway'
         (self.gateway/'config').mkdir(parents=True)
         (self.gateway/'releases').mkdir()
-        self.target='aliyun-prod-shadowtable-01'
+        self.target='aliyun-beijing-01'
         (self.gateway/'deployment-target').write_text(self.target+'\n')
         envfile=self.gateway/'gateway.env'
         envfile.write_text(f'CADDY_IMAGE={OLD_IMAGE}\nACME_EMAIL=admin@example.com\nSHADOWTABLE_DOMAIN=table.example.com\nCADDY_DATA_VOLUME=test-data\nCADDY_CONFIG_VOLUME=test-config\n')
@@ -145,7 +158,7 @@ if 'up' in args and mode=='startup' and values.get('CADDY_IMAGE','').endswith('a
         self.assertFalse((self.gateway/'config/compose.yaml').exists())
         self.assertEqual(sum('up' in c for c in calls),1)
     def test_wrong_host_target_rejected_before_docker(self):
-        (self.gateway/'deployment-target').write_text('aws-prod-shared-01\n')
+        (self.gateway/'deployment-target').write_text('aws-singapore-01\n')
         result,calls=self.deploy()
         self.assertNotEqual(result.returncode,0)
         self.assertEqual(calls,[])

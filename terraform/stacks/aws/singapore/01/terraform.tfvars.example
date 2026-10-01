@@ -1,9 +1,9 @@
 # These values describe a NEW host. Existing resources require inventory/import first.
-name = "aliyun-prod-shadowtable-01"
-region = "cn-hangzhou"
-availability_zone = "cn-hangzhou-i"
+name = "aws-singapore-01"
+region = "ap-southeast-1"
+availability_zone = "ap-southeast-1a"
 image_id = "REPLACE_WITH_UBUNTU_24_04_IMAGE_ID"
-instance_type = "REPLACE_WITH_AVAILABLE_ECS_INSTANCE_TYPE"
+instance_type = "t3.small"
 ssh_public_key = "ssh-ed25519 REPLACE_WITH_PUBLIC_KEY"
 ssh_cidrs = ["203.0.113.10/32"] # Replace with admin/runner egress CIDRs.
 backup_bucket_name = "REPLACE_WITH_GLOBALLY_UNIQUE_PRIVATE_BUCKET"

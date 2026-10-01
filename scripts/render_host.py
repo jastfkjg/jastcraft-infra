@@ -19,9 +19,15 @@ def load_host(selector, root=ROOT):
     if len(matches) != 1:
         raise ValueError('Unknown or duplicate host target: ' + selector)
     path, config = matches[0]
-    cloud, environment, host = path.relative_to(root / 'hosts').parts[:3]
-    if config['cloud'] != cloud or config['environment'] != environment or selector != f'{cloud}-{environment}-{host}':
-        raise ValueError('Host target must match its cloud/environment/host directory')
+    cloud, location, number = path.relative_to(root / 'hosts').parts[:3]
+    if (cloud not in {'aws', 'aliyun'} or config['cloud'] != cloud
+            or config['location'] != location or not re.fullmatch(r'[a-z0-9]+', location)
+            or not re.fullmatch(r'[0-9]{2}', number) or selector != f'{cloud}-{location}-{number}'):
+        raise ValueError('Host target must match its cloud/location/number directory')
+    if config['environment'] not in {'prod', 'staging'}:
+        raise ValueError('Configure the application environment separately from the host location')
+    if not re.fullmatch(r'[a-z][a-z0-9-]+', config['region']):
+        raise ValueError('Configure the cloud region for this host')
     services = config['services']
     if not services or len(set(services)) != len(services) or any(s not in SERVICES for s in services):
         raise ValueError('Configure a nonempty, unique list of supported services')

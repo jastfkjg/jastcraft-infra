@@ -2,8 +2,8 @@
 mock_provider "alicloud" {}
 variables {
   name               = "test-host"
-  region             = "cn-hangzhou"
-  availability_zone  = "cn-hangzhou-i"
+  region             = "cn-beijing"
+  availability_zone  = "cn-beijing-i"
   image_id           = "ubuntu_24_04_x64"
   instance_type      = "ecs.c7.large"
   ssh_public_key     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExamplePublicKeyForMockTestsOnly"
@@ -20,4 +20,16 @@ run "cloud_init_host_identity" {
     condition     = yamldecode(local.cloud_init).runcmd[0][4] == local.host.target
     error_message = "The bootstrap must receive the selected host target identity."
   }
+  assert {
+    condition     = yamldecode(local.cloud_init).runcmd[0][5] == local.host.environment
+    error_message = "The application environment must be explicit, separate from the host location."
+  }
+}
+
+run "reject_wrong_host_region" {
+  command = plan
+  variables {
+    region = "cn-shanghai"
+  }
+  expect_failures = [var.region]
 }

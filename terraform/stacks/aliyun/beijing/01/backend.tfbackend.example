@@ -1,0 +1,7 @@
+bucket = "REPLACE_WITH_EXISTING_STATE_BUCKET"
+prefix = "jastcraft/aliyun/beijing/01"
+key = "terraform.tfstate"
+region = "cn-beijing"
+encrypt = true
+tablestore_endpoint = "https://REPLACE_WITH_STATE_LOCK_INSTANCE.cn-beijing.ots.aliyuncs.com"
+tablestore_table = "terraform_lock" # Pre-create String primary key LockID.

@@ -6,7 +6,7 @@
 
 先完成本节的GitHub配置，再分别提交并推送 `jastcraft-infra` 与 `ShadowTable` 的本次修改到 main。ShadowTable push main 只运行 CI 并发布镜像，已经取消 AWS 自动部署。infra push 只验证配置和 Terraform schema。
 
-ShadowTable 仓库级 Variable：`IMAGE_REPOSITORY`（完整 ACR 仓库路径，例如 `registry.cn-hangzhou.aliyuncs.com/你的namespace/shadowtable`）；Secrets：`REGISTRY_USERNAME` / `REGISTRY_PASSWORD`。从旧 `ACR_*` 迁入新名称，详见业务 `docs/deployment.md`。两云可以继续共用现有 ACR，不必新购镜像服务。
+ShadowTable 仓库级 Variables：`ACR_REGISTRY` / `ACR_NAMESPACE` / `ACR_REPOSITORY`；Secrets：`ACR_USERNAME` / `ACR_PASSWORD`。构建沿用现有 ACR 配置，详见业务 `docs/deployment.md`。两云可以继续共用现有 ACR，不必新购镜像服务。
 
 infra 网关镜像构建继续使用现有仓库级 Variables `ACR_REGISTRY` / `ACR_NAMESPACE` / `ACR_REPOSITORY` 和 Secrets `ACR_USERNAME` / `ACR_PASSWORD`。建立或保留独立 Caddy 镜像仓库。
 
@@ -14,9 +14,10 @@ infra 网关镜像构建继续使用现有仓库级 Variables `ACR_REGISTRY` / `
 
 | 服务器 | ShadowTable Environment | infra Environment / 主机目标 |
 | --- | --- | --- |
-| 现有共享 EC2 | `aws-prod` | `aws-prod-shared-01` |
-| 测试 ECS | `aliyun-staging` | `aliyun-staging-shadowtable-01` |
-| 正式 ECS | `aliyun-prod` | `aliyun-prod-shadowtable-01` |
+| 新加坡 EC2 | `aws-prod` | `aws-singapore-01` |
+| 北京 ECS | `aliyun-prod` | `aliyun-beijing-01` |
+
+当前仅配置这两台服务器，没有独立 staging 服务器。主机 ID 不包含业务或环境；主机清单中的 `services`、`environment` 与 `region` 分别描述承载业务、业务环境和云 API 地域。
 
 在每个仓库建立需要的 Environments，将部署分支限制为 main。每个 Environment 配置 `SSH_HOST`、`SSH_PORT`（默认22）、`SSH_USER`、`SSH_KEY`、`SSH_KNOWN_HOSTS` Secrets。host key 通过云控制台/可信管理连接核验；非22端口使用 `[host]:port` 格式。不要在仓库级保存一组共用 SSH Secrets，以免多个目标回落到同一服务器。
 
@@ -26,38 +27,50 @@ ShadowTable Environment Variable `DEPLOY_TARGET` 必须等于业务环境名；i
 
 ## 2. 选择现有主机或创建新主机
 
-### 2.1 接入现有 EC2
+### 2.1 接入现有 EC2/ECS 与更新主机名称
 
-现有 EC2 继续使用现有 Docker、业务数据和证书卷，不要把新主机 Terraform stack 直接 apply 到它。先备份 `/opt/gateway/gateway.env`、`/opt/gateway/config` 并记录实际证书卷名称。更新服务器 infra 检出到新版本。
+现有 EC2/ECS 继续使用现有 Docker、业务数据和证书卷，不要把新主机 Terraform stack 直接 apply 到它。先备份 `/opt/gateway/gateway.env`、`/opt/gateway/config` 并记录实际证书卷名称。更新服务器 infra 检出到新版本。
 
-部署账号补充标记：
+先在 GitHub 建立 `aws-singapore-01`、`aliyun-beijing-01` Environments，分别迁入对应主机的 SSH Secrets，设置同名 `GATEWAY_TARGET`，部署分支限制为 main。旧 Environment 不会因代码改名自动迁移；确认新目标发布成功后再删除旧 Environment。ShadowTable 的 `aws-prod` / `aliyun-prod` 与应用标记保留。
+
+部署账号在对应服务器补充或更新标记，新加坡 EC2：
 
 ```bash
-printf '%s\n' aws-prod-shared-01 > /opt/gateway/deployment-target
+printf '%s\n' aws-singapore-01 > /opt/gateway/deployment-target
 printf '%s\n' aws-prod > /opt/shadowtable/deployment-target
 mkdir -p /opt/gateway/releases
 ```
 
-保留 `/opt/gateway/gateway.env` 里的真实域名、邮箱、镜像和 `CADDY_DATA_VOLUME/CADDY_CONFIG_VOLUME`，不要用新主机示例覆盖这些值。权限600、部署账号所有。建立新的 `aws-prod` 和 `aws-prod-shared-01` Environments 后，两侧改为手动发布。
+北京 ECS：
 
-需要后续把现有资源纳管时，按实际 VPC/子网/实例/磁盘拓扑编写配置并 import，审查 plan 达到无意外替换后再 apply。本仓库的资源模块定义的是新建独立主机，不自动识别现有 EC2。
+```bash
+printf '%s\n' aliyun-beijing-01 > /opt/gateway/deployment-target
+printf '%s\n' aliyun-prod > /opt/shadowtable/deployment-target
+mkdir -p /opt/gateway/releases
+```
+
+保留 `/opt/gateway/gateway.env` 里的真实域名、邮箱、镜像和 `CADDY_DATA_VOLUME/CADDY_CONFIG_VOLUME`，不要用新主机示例覆盖这些值。权限600、部署账号所有。网关改名不需要更改卷名，否则会使用新的证书卷。使用新的主机目标手动发布网关以更新生成配置。旧 release 的 `host` 文件可能仍记录旧名称，不要批量覆盖历史 release。
+
+需要后续把现有资源纳管时，按实际 VPC/子网/实例/磁盘拓扑编写配置并 import，审查 plan 达到无意外替换后再 apply。本仓库的资源模块定义的是新建独立主机，不自动识别现有 EC2/ECS。
+
+Terraform 目录现在是 `terraform/stacks/aws/singapore/01` 与 `terraform/stacks/aliyun/beijing/01`。若旧目录已经管理过资源，把原真实 tfvars/backend 配置和本地 state（若有）安全迁入新目录，保留原资源 `name`、实际地域以及 backend bucket/key/prefix/锁配置，不要用新建模板覆盖。目录和主机 ID 改名不会迁移远程 state；尤其不要因示例路径更新而连接空 state 再 apply。已有资源的系统盘/user_data 更新按原保护策略处理。
 
 ### 2.2 手动准备新的 ECS/EC2
 
 选用 Ubuntu 22.04/24.04，设置管理机和 GitHub runner 出口的 SSH 访问规则，公网仅开放80/443业务入口。先从管理机上传本仓库或使用可信方式 clone，再执行：
 
 ```bash
-sudo bash host/bootstrap.sh deploy shadowtable aliyun-staging-shadowtable-01
+sudo bash host/bootstrap.sh deploy shadowtable aliyun-beijing-01 prod
 ```
 
-正式 ECS 将主机 ID 改为 `aliyun-prod-shadowtable-01`。初始化安装 Docker/Compose、Python、SQLite 等工具，创建账号、目录和目标标记，不格式化磁盘、不发布业务。将专用部署公钥配置到 `deploy` 的 authorized_keys，重新登录使 Docker 组生效，检查 `docker info` 和 `docker compose version`（至少2.24）。已有数据目录保留原所有者。
+新加坡主机使用 `sudo bash host/bootstrap.sh deploy echooo,shadowtable,wenlv aws-singapore-01 prod`。第四个参数显式描述业务环境，默认 `prod`；主机 ID 不再推导业务环境。初始化安装 Docker/Compose、Python、SQLite 等工具，创建账号、目录和目标标记，不格式化磁盘、不发布业务。将专用部署公钥配置到 `deploy` 的 authorized_keys，重新登录使 Docker 组生效，检查 `docker info` 和 `docker compose version`（至少2.24）。已有数据目录保留原所有者。
 
 ### 2.3 使用 Terraform 新建主机（可选）
 
 安装 Terraform >=1.10（CI固定1.14.9）。按独立目录操作，例如阿里云正式主机：
 
 ```bash
-cd terraform/stacks/aliyun/prod/shadowtable-01
+cd terraform/stacks/aliyun/beijing/01
 cp terraform.tfvars.example terraform.tfvars
 cp backend.tfbackend.example backend.tfbackend
 ```
@@ -89,12 +102,12 @@ terraform output
 
 ## 3. 配置并发布每台主机的网关
 
-阿里云目标清单位于 `hosts/aliyun/<环境>/shadowtable-01/host.json`，只包含 `shadowtable`；AWS共享主机包含三项业务。真实域名放在服务器env，不放清单。
+阿里云清单位于 `hosts/aliyun/beijing/01/host.json`，当前只包含 `shadowtable`；AWS 清单位于 `hosts/aws/singapore/01/host.json`，当前包含三项业务。主机名不限制可承载的业务。真实域名放在服务器env，不放清单。
 
 新主机复制其示例到 `/opt/gateway/gateway.env`（以下在已有本仓库检出的服务器执行）：
 
 ```bash
-cp hosts/aliyun/staging/shadowtable-01/gateway.env.example /opt/gateway/gateway.env
+cp hosts/aliyun/beijing/01/gateway.env.example /opt/gateway/gateway.env
 chmod 600 /opt/gateway/gateway.env
 ```
 
@@ -121,7 +134,7 @@ bash gateway/compose.sh logs --tail 100 caddy
 
 ## 4. 发布业务及正式迁移
 
-ShadowTable Actions → **Container CI and build**，main构建成功后复制Build run ID；然后 **Deploy tested image** 选择 `aliyun-staging` 和该编号。验收后同一编号发布 `aliyun-prod`，全过程不重新构建镜像。业务Secrets/app.env独立，详细说明见ShadowTable的部署指南。
+ShadowTable Actions → **Container CI and build**，main构建成功后复制Build run ID；然后 **Deploy tested image** 选择 `aliyun-prod`（北京 ECS）或 `aws-prod`（新加坡 EC2）和该编号，全过程不重新构建镜像。北京 ECS 尚未接正式流量时，可先用独立临时域名与测试数据验收；当前没有独立 staging 部署目标。业务Secrets/app.env独立，详细说明见ShadowTable的部署指南。
 
 正式跨云迁移需要停旧实例写入，备份并搬完整SQLite数据目录，部署新端后切DNS。域名健康检查会访问新主机本机Caddy并校验证书，防止误验旧EC2。旧端保持停止；新端开始写入后回切需要明确的数据恢复策略。确认迁移完成后，从AWS主机清单的services移除shadowtable，再手动发布AWS网关，保留其他业务路由。
 
@@ -135,7 +148,7 @@ sudo cp host/backup.env.example /etc/jastcraft/backup.env
 sudo chmod 600 /etc/jastcraft/backup.env
 ```
 
-编辑 `BACKUP_CLOUD=aws|aliyun` 与 `BACKUP_DESTINATION=s3://.../shadowtable/prod` 或 `oss://.../shadowtable/prod`。测试环境使用staging前缀。安装对应官方CLI [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) / [ossutil](https://help.aliyun.com/zh/oss/developer-reference/ossutil-overview/)，按已绑定的IAM/RAM实例角色配置凭据，先用上传命令验证目标前缀权限。systemd任务以root运行，CLI和凭据配置也必须在root环境可用。不要把云AccessKey写进仓库。
+编辑 `BACKUP_CLOUD=aws|aliyun` 与 `BACKUP_DESTINATION=s3://.../shadowtable/prod` 或 `oss://.../shadowtable/prod`。当前两台主机的业务环境均为 prod，各自备份桶/路径独立。安装对应官方CLI [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) / [ossutil](https://help.aliyun.com/zh/oss/developer-reference/ossutil-overview/)，按已绑定的IAM/RAM实例角色配置凭据，先用上传命令验证目标前缀权限。systemd任务以root运行，CLI和凭据配置也必须在root环境可用。不要把云AccessKey写进仓库。
 
 ```bash
 sudo systemctl start jastcraft-backup.service
@@ -151,6 +164,6 @@ systemctl list-timers jastcraft-backup.timer jastcraft-health.timer
 
 ## 6. 增加后续服务或主机
 
-复用本仓库的云模块，新主机创建独立stack/state与 `hosts/<云>/<环境>/<主机>` 清单。复制并修改Environment与工作流的target选项，不复制整套业务发布脚本。新的业务路由加入 `gateway/routes`，并注册域名变量映射；应用Compose加入自己的本地proxy网络且声明固定upstream别名，数据库留在业务私有网络。
+复用本仓库的云模块，新主机创建独立stack/state与 `hosts/<云>/<地域>/<编号>` 清单。复制并修改Environment与工作流的target选项，不复制整套业务发布脚本。新的业务路由加入 `gateway/routes`，并注册域名变量映射；应用Compose加入自己的本地proxy网络且声明固定upstream别名，数据库留在业务私有网络。
 
 应用镜像、schema迁移、应用回退始终留在各业务仓库。服务与数据库尽量在同云同区域；如果同一服务要多实例运行，先解决共享数据库、并发更新、会话和缓存，再评估托管容器平台。

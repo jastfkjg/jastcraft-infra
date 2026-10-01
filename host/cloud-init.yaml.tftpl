@@ -12,4 +12,4 @@ write_files:
     encoding: b64
     content: ${bootstrap_base64}
 runcmd:
-  - [bash, /usr/local/sbin/jastcraft-bootstrap, ${jsonencode(deploy_user)}, ${jsonencode(services)}, ${jsonencode(host_target)}]
+  - [bash, /usr/local/sbin/jastcraft-bootstrap, ${jsonencode(deploy_user)}, ${jsonencode(services)}, ${jsonencode(host_target)}, ${jsonencode(app_environment)}]
