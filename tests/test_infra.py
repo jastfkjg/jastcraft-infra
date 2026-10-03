@@ -23,13 +23,16 @@ class HostTest(unittest.TestCase):
     def test_selected_host_contains_only_its_services(self):
         with tempfile.TemporaryDirectory() as directory:
             compose = render('aliyun-beijing-01', directory)
-            self.assertEqual(set(compose['networks']), {'shadowtable', 'just-works'})
+            self.assertEqual(set(compose['networks']), {'shadowtable', 'just-works', 'inkmind'})
             self.assertEqual(compose['networks']['just-works']['name'], 'just-works_proxy')
-            self.assertEqual(set(compose['services']['caddy']['environment']), {'ACME_EMAIL','SHADOWTABLE_DOMAIN','JUST_WORKS_DOMAIN'})
+            self.assertEqual(set(compose['services']['caddy']['environment']), {'ACME_EMAIL','SHADOWTABLE_DOMAIN','JUST_WORKS_DOMAIN','INKMIND_DOMAIN'})
             text=(Path(directory)/'Caddyfile').read_text()
             self.assertIn('shadowtable-upstream:8787', text)
             self.assertIn('just-works-upstream:8080', text)
             self.assertIn('{$JUST_WORKS_DOMAIN}', text)
+            self.assertIn('inkmind-upstream:80', text)
+            self.assertIn('{$INKMIND_DOMAIN}', text)
+            self.assertIn('flush_interval -1', text)
             self.assertNotIn('echooo',text)
             self.assertNotIn('wenlv',text)
     def test_shared_host_preserves_routes_and_setup_guard(self):
@@ -77,6 +80,23 @@ class HostTest(unittest.TestCase):
             with self.assertRaises(ValueError): backup_module.backup(Path(directory)/'missing.sqlite',Path(directory)/'backup.sqlite')
             self.assertFalse((Path(directory)/'backup.sqlite').exists())
 
+class InkMindBackupTest(unittest.TestCase):
+    def test_named_backup_keeps_legacy_default_and_preserves_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'inkmind.db'
+            with sqlite3.connect(source) as db:
+                db.execute('CREATE TABLE novels(title TEXT)')
+                db.execute('INSERT INTO novels VALUES(?)', ('真实作品',))
+            for prefix in ['inkmind', 'shadowtable']:
+                args = [sys.executable, str(ROOT/'host/backup-sqlite.py'), str(source), directory]
+                if prefix == 'inkmind': args += ['--prefix', prefix]
+                result = subprocess.run(args, capture_output=True, text=True, check=True)
+                snapshot = Path(result.stdout.strip())
+                self.assertTrue(snapshot.name.startswith(prefix + '-'))
+                self.assertEqual(snapshot.stat().st_mode & 0o777, 0o600)
+                with sqlite3.connect(snapshot) as db:
+                    self.assertEqual(db.execute('SELECT title FROM novels').fetchone()[0], '真实作品')
+
 class GatewayDeploymentTest(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
@@ -88,7 +108,7 @@ class GatewayDeploymentTest(unittest.TestCase):
         self.target='aliyun-beijing-01'
         (self.gateway/'deployment-target').write_text(self.target+'\n')
         envfile=self.gateway/'gateway.env'
-        envfile.write_text(f'CADDY_IMAGE={OLD_IMAGE}\nACME_EMAIL=admin@example.com\nSHADOWTABLE_DOMAIN=table.example.com\nJUST_WORKS_DOMAIN=works.example.com\nCADDY_DATA_VOLUME=test-data\nCADDY_CONFIG_VOLUME=test-config\n')
+        envfile.write_text(f'CADDY_IMAGE={OLD_IMAGE}\nACME_EMAIL=admin@example.com\nSHADOWTABLE_DOMAIN=table.example.com\nJUST_WORKS_DOMAIN=works.example.com\nINKMIND_DOMAIN=inkmind.jastcraft.com\nCADDY_DATA_VOLUME=test-data\nCADDY_CONFIG_VOLUME=test-config\n')
         envfile.chmod(0o600)
         render(self.target,self.gateway/'config',str(self.gateway))
         (self.gateway/'config/image.env').write_text('CADDY_IMAGE='+OLD_IMAGE+'\n')

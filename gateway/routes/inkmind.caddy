@@ -1,0 +1,5 @@
+{$INKMIND_DOMAIN} {
+    reverse_proxy inkmind-upstream:80 {
+        flush_interval -1
+    }
+}

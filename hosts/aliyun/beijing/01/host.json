@@ -6,6 +6,7 @@
   "environment": "prod",
   "services": [
     "shadowtable",
-    "just-works"
+    "just-works",
+    "inkmind"
   ]
 }

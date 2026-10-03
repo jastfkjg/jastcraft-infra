@@ -12,7 +12,7 @@
 当前目标清单：
 
 - `aws-singapore-01`：新加坡 EC2（`ap-southeast-1`），当前网关接入 echooo、ShadowTable、文旅拾光。
-- `aliyun-beijing-01`：北京 ECS（`cn-beijing`），当前网关接入 ShadowTable、just-works。
+- `aliyun-beijing-01`：北京 ECS（`cn-beijing`），当前网关接入 ShadowTable、just-works、InkMind。
 
 主机 ID 按云厂商、地域、编号命名，不绑定业务或环境；`host.json` 中的 `services` 决定承载业务，`environment` 单独描述当前业务发布环境（两台目前均为 `prod`）。新增业务不需要改主机 ID。
 

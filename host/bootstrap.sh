@@ -77,7 +77,7 @@ cloud=${BASH_REMATCH[1]}
 [[ "$app_environment" =~ ^(prod|staging)$ ]]
 app_target="$cloud-$app_environment"
 [[ "$deploy_user" =~ ^[a-z_][a-z0-9_-]*$ ]]
-[[ "$services" =~ ^(echooo|shadowtable|wenlv|just-works)(,(echooo|shadowtable|wenlv|just-works))*$ ]]
+[[ "$services" =~ ^(echooo|shadowtable|wenlv|just-works|inkmind)(,(echooo|shadowtable|wenlv|just-works|inkmind))*$ ]]
 install_runtime
 systemctl enable --now docker
 id "$deploy_user" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$deploy_user"

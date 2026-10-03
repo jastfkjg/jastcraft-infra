@@ -27,6 +27,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('source', type=Path)
     parser.add_argument('directory', type=Path)
+    parser.add_argument('--prefix', choices=['shadowtable', 'inkmind'], default='shadowtable')
     args = parser.parse_args()
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
-    print(backup(args.source.resolve(), args.directory / ('shadowtable-' + stamp + '.sqlite')))
+    print(backup(args.source.resolve(), args.directory / (args.prefix + '-' + stamp + '.sqlite')))

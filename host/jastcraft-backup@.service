@@ -1,0 +1,9 @@
+[Unit]
+Description=Snapshot %i SQLite and upload to private cloud storage
+After=docker.service network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/jastcraft/backup-%i.env
+ExecStart=/usr/local/lib/jastcraft/backup.sh
+UMask=0077

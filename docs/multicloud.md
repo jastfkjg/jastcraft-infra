@@ -102,7 +102,7 @@ terraform output
 
 ## 3. 配置并发布每台主机的网关
 
-阿里云清单位于 `hosts/aliyun/beijing/01/host.json`，当前包含 `shadowtable` 和 `just-works`；AWS 清单位于 `hosts/aws/singapore/01/host.json`，当前包含三项业务。主机名不限制可承载的业务。真实域名放在服务器env，不放清单。
+阿里云清单位于 `hosts/aliyun/beijing/01/host.json`，当前包含 `shadowtable`、`just-works` 和 `inkmind`；AWS 清单位于 `hosts/aws/singapore/01/host.json`，当前包含三项业务。主机名不限制可承载的业务。真实域名放在服务器env，不放清单。
 
 新主机复制其示例到 `/opt/gateway/gateway.env`（以下在已有本仓库检出的服务器执行）：
 
@@ -197,3 +197,18 @@ ACR，再手动部署到 `aliyun-prod`。这里仅管理域名、网络和公共
 
 AWS 主机清单保持原样。顶层 `gateway/Caddyfile` / `gateway/compose.yaml` 是旧兼容
 路径；北京主机使用 `host.json` 与 `gateway/routes/just-works.caddy` 渲染的配置。
+
+### 6.2 InkMind 接入北京 ECS
+
+域名 `inkmind.jastcraft.com`，服务映射 `inkmind_proxy` / `inkmind-upstream:80`。
+在现有 `gateway.env` 增加 `INKMIND_DOMAIN=inkmind.jastcraft.com`，将 DNS 指向北京 ECS，
+随后手动发布网关（保留真实证书卷和现有服务配置）。应用发布由 InkMind 仓库负责。
+已有主机无需重新 bootstrap：仅增加 `/opt/inkmind/releases`、`backups`（部署账号 700）、
+`data`（UID/GID 1000，700）和 `deployment-target`（`aliyun-prod`），不要覆盖旧目录和数据库。
+首次迁移步骤、配置及 GitHub Environment 见 InkMind 的 `docs/DEPLOYMENT.md`。
+
+InkMind 的在线备份必须以 root 运行（data 为 UID 1000、700），使用与发布相同的部署锁。
+`backup.sh` 支持 `BACKUP_SERVICE=inkmind`，使用 `host/backup-inkmind.env.example`，
+对象存储目的地使用独立的 `inkmind/prod` 前缀，并配置相应桶权限。
+可使用 `jastcraft-backup@inkmind.timer` 和 `/etc/jastcraft/backup-inkmind.env` 独立启用，
+原 ShadowTable 的非模板备份服务保持不变。首次手动运行并确认远程上传、恢复测试通过后启用 timer。
