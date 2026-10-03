@@ -5,6 +5,7 @@
   "region": "cn-beijing",
   "environment": "prod",
   "services": [
-    "shadowtable"
+    "shadowtable",
+    "just-works"
   ]
 }

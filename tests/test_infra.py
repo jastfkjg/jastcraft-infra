@@ -23,10 +23,13 @@ class HostTest(unittest.TestCase):
     def test_selected_host_contains_only_its_services(self):
         with tempfile.TemporaryDirectory() as directory:
             compose = render('aliyun-beijing-01', directory)
-            self.assertEqual(set(compose['networks']), {'shadowtable'})
-            self.assertEqual(set(compose['services']['caddy']['environment']), {'ACME_EMAIL','SHADOWTABLE_DOMAIN'})
+            self.assertEqual(set(compose['networks']), {'shadowtable', 'just-works'})
+            self.assertEqual(compose['networks']['just-works']['name'], 'just-works_proxy')
+            self.assertEqual(set(compose['services']['caddy']['environment']), {'ACME_EMAIL','SHADOWTABLE_DOMAIN','JUST_WORKS_DOMAIN'})
             text=(Path(directory)/'Caddyfile').read_text()
             self.assertIn('shadowtable-upstream:8787', text)
+            self.assertIn('just-works-upstream:8080', text)
+            self.assertIn('{$JUST_WORKS_DOMAIN}', text)
             self.assertNotIn('echooo',text)
             self.assertNotIn('wenlv',text)
     def test_shared_host_preserves_routes_and_setup_guard(self):
@@ -36,6 +39,7 @@ class HostTest(unittest.TestCase):
             text=(Path(directory)/'Caddyfile').read_text()
             self.assertIn('/api/auth/setup',text)
             self.assertIn('flush_interval -1',text)
+            self.assertNotIn('just-works', text)
     def test_unknown_or_path_target_rejected(self):
         for value in ['missing','../../gateway','aliyun-beijing-01\n']:
             with self.assertRaises(ValueError): load_host(value)
@@ -84,7 +88,7 @@ class GatewayDeploymentTest(unittest.TestCase):
         self.target='aliyun-beijing-01'
         (self.gateway/'deployment-target').write_text(self.target+'\n')
         envfile=self.gateway/'gateway.env'
-        envfile.write_text(f'CADDY_IMAGE={OLD_IMAGE}\nACME_EMAIL=admin@example.com\nSHADOWTABLE_DOMAIN=table.example.com\nCADDY_DATA_VOLUME=test-data\nCADDY_CONFIG_VOLUME=test-config\n')
+        envfile.write_text(f'CADDY_IMAGE={OLD_IMAGE}\nACME_EMAIL=admin@example.com\nSHADOWTABLE_DOMAIN=table.example.com\nJUST_WORKS_DOMAIN=works.example.com\nCADDY_DATA_VOLUME=test-data\nCADDY_CONFIG_VOLUME=test-config\n')
         envfile.chmod(0o600)
         render(self.target,self.gateway/'config',str(self.gateway))
         (self.gateway/'config/image.env').write_text('CADDY_IMAGE='+OLD_IMAGE+'\n')

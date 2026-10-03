@@ -1,0 +1,3 @@
+{$JUST_WORKS_DOMAIN} {
+    reverse_proxy just-works-upstream:8080
+}

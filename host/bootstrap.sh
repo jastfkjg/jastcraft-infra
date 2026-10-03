@@ -77,7 +77,7 @@ cloud=${BASH_REMATCH[1]}
 [[ "$app_environment" =~ ^(prod|staging)$ ]]
 app_target="$cloud-$app_environment"
 [[ "$deploy_user" =~ ^[a-z_][a-z0-9_-]*$ ]]
-[[ "$services" =~ ^(echooo|shadowtable|wenlv)(,(echooo|shadowtable|wenlv))*$ ]]
+[[ "$services" =~ ^(echooo|shadowtable|wenlv|just-works)(,(echooo|shadowtable|wenlv|just-works))*$ ]]
 install_runtime
 systemctl enable --now docker
 id "$deploy_user" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$deploy_user"
@@ -91,9 +91,13 @@ else
 fi
 IFS=',' read -r -a app_services <<< "$services"
 for service in "${app_services[@]}"; do
-    install -d -o "$deploy_user" -g "$deploy_user" -m 700 "/opt/$service" "/opt/$service/releases" "/opt/$service/backups"
-    # Preserve owners of existing data. Business-specific database setup remains in its repository.
-    if [[ ! -d "/opt/$service/data" ]]; then install -d -o 1000 -g 1000 -m 700 "/opt/$service/data"; fi
+    install -d -o "$deploy_user" -g "$deploy_user" -m 700 "/opt/$service" "/opt/$service/releases"
+    # The static just-works image has no persistent application data.
+    if [[ "$service" != just-works ]]; then
+        install -d -o "$deploy_user" -g "$deploy_user" -m 700 "/opt/$service/backups"
+        # Preserve owners of existing data. Business-specific setup stays in its repository.
+        if [[ ! -d "/opt/$service/data" ]]; then install -d -o 1000 -g 1000 -m 700 "/opt/$service/data"; fi
+    fi
     if [[ -f "/opt/$service/deployment-target" ]]; then
         [[ "$(cat "/opt/$service/deployment-target")" == "$app_target" ]] || { echo 'Existing application has a different deployment target' >&2; exit 1; }
     else

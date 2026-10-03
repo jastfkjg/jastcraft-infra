@@ -60,7 +60,7 @@ Terraform 目录现在是 `terraform/stacks/aws/singapore/01` 与 `terraform/sta
 支持 Ubuntu 22.04/24.04 和 Alibaba Cloud Linux 3（含 3.2104 LTS），脚本自动选择 apt/dnf。设置管理机和 GitHub runner 出口的 SSH 访问规则，公网仅开放80/443业务入口。先从管理机上传本仓库或使用可信方式 clone，再执行：
 
 ```bash
-sudo bash host/bootstrap.sh deploy shadowtable aliyun-beijing-01 prod
+sudo bash host/bootstrap.sh deploy shadowtable,just-works aliyun-beijing-01 prod
 ```
 
 新加坡主机使用 `sudo bash host/bootstrap.sh deploy echooo,shadowtable,wenlv aws-singapore-01 prod`。第四个参数显式描述业务环境，默认 `prod`；主机 ID 不再推导业务环境。初始化安装 Docker/Compose、Python、SQLite 等工具，创建账号、目录和目标标记，不格式化磁盘、不发布业务。将专用部署公钥配置到 `deploy` 的 authorized_keys，重新登录使 Docker 组生效，检查 `docker info` 和 `docker compose version`（至少2.24）。已有数据目录保留原所有者。 Alibaba Cloud Linux 3 使用[阿里云 Docker CE 镜像源和 releasever 兼容插件](https://help.aliyun.com/zh/ecs/user-guide/install-and-use-docker)。脚本不会自动卸载 Docker、Podman 或删除容器数据；已有 Docker 可用时仅按需安装 Compose 插件，要求 Compose >=2.24。
@@ -102,7 +102,7 @@ terraform output
 
 ## 3. 配置并发布每台主机的网关
 
-阿里云清单位于 `hosts/aliyun/beijing/01/host.json`，当前只包含 `shadowtable`；AWS 清单位于 `hosts/aws/singapore/01/host.json`，当前包含三项业务。主机名不限制可承载的业务。真实域名放在服务器env，不放清单。
+阿里云清单位于 `hosts/aliyun/beijing/01/host.json`，当前包含 `shadowtable` 和 `just-works`；AWS 清单位于 `hosts/aws/singapore/01/host.json`，当前包含三项业务。主机名不限制可承载的业务。真实域名放在服务器env，不放清单。
 
 新主机复制其示例到 `/opt/gateway/gateway.env`（以下在已有本仓库检出的服务器执行）：
 
@@ -169,3 +169,31 @@ systemctl list-timers jastcraft-backup.timer jastcraft-health.timer
 复用本仓库的云模块，新主机创建独立stack/state与 `hosts/<云>/<地域>/<编号>` 清单。复制并修改Environment与工作流的target选项，不复制整套业务发布脚本。新的业务路由加入 `gateway/routes`，并注册域名变量映射；应用Compose加入自己的本地proxy网络且声明固定upstream别名，数据库留在业务私有网络。
 
 应用镜像、schema迁移、应用回退始终留在各业务仓库。服务与数据库尽量在同云同区域；如果同一服务要多实例运行，先解决共享数据库、并发更新、会话和缓存，再评估托管容器平台。
+
+
+### 6.1 just-works 静态站接入北京 ECS
+
+`just-works` 业务仓库保留 Cloudflare Pages，同时独立构建静态站镜像、发布到
+ACR，再手动部署到 `aliyun-prod`。这里仅管理域名、网络和公共网关；页面内容、
+应用镜像、健康检查及回退由 `just-works/DEPLOYMENT.md` 中的业务流程管理。
+
+已有 ECS 无需重新 bootstrap 或执行 Terraform apply。以 root 创建
+`/opt/just-works` 和 `/opt/just-works/releases`，属主设为实际部署账号，权限 700；
+再由该账号写入 `/opt/just-works/deployment-target`，内容为 `aliyun-prod`。
+静态站没有数据库，不需要 data/backups 目录或新备份桶权限。
+
+1. 阿里云入口使用 `https://me.jastcraft.com`。完成备案及接入要求后，将
+   `jastcraft.com` 的 `me` A 记录指向北京 ECS 公网 IPv4 地址；保留现有 Cloudflare Pages 发布通道。
+2. 在现有 `/opt/gateway/gateway.env` 补充 `JUST_WORKS_DOMAIN=me.jastcraft.com`，保留
+   ShadowTable 域名、现有证书卷名和其他配置。同步业务 `app.env` 的 `SITE_DOMAIN=me.jastcraft.com`。
+3. 提交新路由及主机清单后，手动 **Deploy gateway** 到 `aliyun-beijing-01`，
+   可复用现有 Caddy digest。它会创建 `just-works_proxy` 并连接网关；新增服务涉及
+   Compose/network/env 变化，不能只运行 reload。首次接入会重建共享网关容器，
+   安排短维护窗口并回测 ShadowTable。
+4. 在业务仓库手动 **Deploy tested image**。业务容器提供内部 8080 端口并声明
+   `just-works-upstream` 别名，不映射公网端口。首次业务发布前网站返回 502 属预期。
+5. 验证网站首页、六个详情页及 `/health`；健康响应需包含 `service=just-works`
+   和目标源码 revision。后续页面发布只更新业务容器，不操作网关。
+
+AWS 主机清单保持原样。顶层 `gateway/Caddyfile` / `gateway/compose.yaml` 是旧兼容
+路径；北京主机使用 `host.json` 与 `gateway/routes/just-works.caddy` 渲染的配置。

@@ -8,7 +8,9 @@ def validate(config):
     service = config['services']['caddy']
     image_reference(service['image'])
     env = service['environment']
-    domains = [value.removeprefix('http://') for key, value in env.items() if key.endswith('_DOMAIN') or key == 'ECHOOO_ADDRESS']
+    # Hosts may use Python <3.9, which has no str.removeprefix().
+    domains = [value[7:] if value.startswith('http://') else value
+               for key, value in env.items() if key.endswith('_DOMAIN') or key == 'ECHOOO_ADDRESS']
     if not domains or any(not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9.-]*', value) for value in domains):
         raise ValueError('Use plain hostnames (ECHOOO_ADDRESS may retain a legacy http:// address)')
     if len({d.lower() for d in domains}) != len(domains):
