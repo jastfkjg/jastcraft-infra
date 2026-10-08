@@ -102,7 +102,7 @@ terraform output
 
 ## 3. 配置并发布每台主机的网关
 
-阿里云清单位于 `hosts/aliyun/beijing/01/host.json`，当前包含 `shadowtable`、`just-works` 和 `inkmind`；AWS 清单位于 `hosts/aws/singapore/01/host.json`，当前包含三项业务。主机名不限制可承载的业务。真实域名放在服务器env，不放清单。
+阿里云清单位于 `hosts/aliyun/beijing/01/host.json`，当前包含 `shadowtable`、`just-works`、`inkmind` 和 `directo`；AWS 清单位于 `hosts/aws/singapore/01/host.json`，当前包含三项业务。主机名不限制可承载的业务。真实域名放在服务器env，不放清单。
 
 新主机复制其示例到 `/opt/gateway/gateway.env`（以下在已有本仓库检出的服务器执行）：
 
@@ -212,3 +212,106 @@ InkMind 的在线备份必须以 root 运行（data 为 UID 1000、700），使�
 对象存储目的地使用独立的 `inkmind/prod` 前缀，并配置相应桶权限。
 可使用 `jastcraft-backup@inkmind.timer` 和 `/etc/jastcraft/backup-inkmind.env` 独立启用，
 原 ShadowTable 的非模板备份服务保持不变。首次手动运行并确认远程上传、恢复测试通过后启用 timer。
+
+### 6.3 Directo 手动部署容器接入北京 ECS
+
+入口为 `https://directo.jastcraft.com`，DNS A 记录指向 `39.106.102.121`。
+当前Web容器为 `script2video_web`，端口映射为宿主机3000到容器80。
+网关通过 `directo_proxy` 网络访问 `directo-upstream:80`；这里的 80 是
+**容器内部端口**。本仓库管理域名和网关，Directo 镜像、容器启动、应用配置和数据
+继续由业务的手动部署流程管理。
+
+#### 首次接入
+
+1. 在服务器确认业务容器名及端口映射：
+
+   ```bash
+   docker ps --format 'table {{.Names}}\t{{.Ports}}'
+   ```
+
+   `script2video_web` 的 `3000->80/tcp` 对应当前路由。如果后续内部端口改变，先将
+   `gateway/routes/directo.caddy` 的目标端口改为实际内部端口，并同步测试中的端口预期。
+   应用在容器内应监听 `0.0.0.0` 和实际内部端口，而非只监听容器的 loopback。
+
+2. 使用有 Docker 权限的账号给现有Web容器增加网络连接；如容器改名，使用第1步查到的名称。
+   以下 `connect` 命令用于首次连接，已连接时先用 `docker inspect` 确认别名，避免重复执行：
+
+   ```bash
+   DIRECTO_CONTAINER=script2video_web
+   docker network inspect directo_proxy >/dev/null 2>&1 || docker network create directo_proxy
+   docker network connect --alias directo-upstream directo_proxy "$DIRECTO_CONTAINER"
+   docker inspect --format '{{json .NetworkSettings.Networks}}' "$DIRECTO_CONTAINER"
+   ```
+
+   将网络和别名写入业务启动配置，避免重建容器后丢失。Compose 用户将以下片段
+   合并到实际 Web 服务；示例的服务名 `directo` 需换成真实名称，已有私有网络继续保留，
+   数据库无需连接 proxy 网络：
+
+   ```yaml
+   services:
+     directo:
+       networks:
+         default: {}
+         directo_proxy:
+           aliases:
+             - directo-upstream
+   networks:
+     default: {}
+     directo_proxy:
+       external: true
+       name: directo_proxy
+   ```
+
+   使用 `docker run` 时，在业务原有启动命令中增加
+   `--network directo_proxy --network-alias directo-upstream`。
+   这些参数位于镜像名之前；镜像、环境变量、数据卷等继续使用业务原有配置。
+
+3. 以网关部署账号备份并编辑现有 `/opt/gateway/gateway.env`：
+
+   ```bash
+   cp /opt/gateway/gateway.env "/opt/gateway/gateway.env.bak.$(date +%Y%m%d%H%M%S)"
+   ```
+
+   增加 `DIRECTO_DOMAIN=directo.jastcraft.com`，保留其他域名、镜像和真实证书卷名称。
+   文件仍应由网关部署账号所有，权限600；不要用示例文件覆盖它。
+   确认安全组和主机防火墙允许80/443、ICP备案及阿里云接入手续已完成。
+
+4. 将本仓库改动提交到main，等待 **Verify infrastructure** 通过，再运行
+   **Deploy gateway**，选择 `aliyun-beijing-01`，填写完整的当前 Caddy
+   `registry/repository@sha256:...` 引用。可在服务器查看：
+
+   ```bash
+   GATEWAY_CONTAINER=$(docker ps -q \
+     --filter label=com.docker.compose.project=jastcraft-gateway \
+     --filter label=com.docker.compose.service=caddy)
+   docker inspect --format '{{.Config.Image}}' "$GATEWAY_CONTAINER"
+   ```
+
+   路由和Compose由发布流程生成，可复用当前不可变镜像，无需重新发布 Caddy 镜像。
+   新增服务涉及网络和环境变量，必须执行完整发布，不能只运行reload。
+   共享 Caddy 容器会重建，安排短维护窗口并回测其他站点。
+
+5. 验证HTTPS和应用功能：
+
+   ```bash
+   curl -sS -o /dev/null -w 'HTTP %{http_code}\n' https://directo.jastcraft.com/
+   GATEWAY_CONTAINER=$(docker ps -q \
+     --filter label=com.docker.compose.project=jastcraft-gateway \
+     --filter label=com.docker.compose.service=caddy)
+   docker exec "$GATEWAY_CONTAINER" wget -S -O /dev/null http://directo-upstream:80/
+   ```
+
+   内部检查端口也需与第1步一致。如返回502，检查网络、别名、容器内部端口和监听地址；证书错误则检查DNS、
+   80/443连通性及Caddy日志。验收首页、登录、API，以及原ShadowTable、just-works、InkMind入口。
+   应用若配置站点地址、登录回调或CORS，将其更新为新的HTTPS域名。
+
+#### 后续手动部署
+
+保持业务容器加入 `directo_proxy`、别名为 `directo-upstream`，并监听相同内部端口。
+使用更新后的Compose或 `docker run` 命令创建容器即可，无需再次修改DNS或发布网关。
+同一别名应只分配给当前提供服务的应用容器，避免旧、新容器同时接收流量。
+应用重建期间可能短暂返回502。
+
+域名验收通过后关闭安全组的公网3000入口。后续业务重建时，移除Compose的公网
+`ports` 映射或 `docker run` 的 `-p 3000:80`；内部代理访问不需要发布宿主机端口。
+保留业务原有数据卷和环境变量，无需重新bootstrap或执行Terraform apply。

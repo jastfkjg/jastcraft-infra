@@ -1,0 +1,3 @@
+{$DIRECTO_DOMAIN} {
+    reverse_proxy directo-upstream:80
+}

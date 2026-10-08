@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVICES = {'echooo': 'ECHOOO_ADDRESS', 'shadowtable': 'SHADOWTABLE_DOMAIN', 'wenlv': 'WENLV_DOMAIN', 'just-works': 'JUST_WORKS_DOMAIN', 'inkmind': 'INKMIND_DOMAIN'}
+SERVICES = {'echooo': 'ECHOOO_ADDRESS', 'shadowtable': 'SHADOWTABLE_DOMAIN', 'wenlv': 'WENLV_DOMAIN', 'just-works': 'JUST_WORKS_DOMAIN', 'inkmind': 'INKMIND_DOMAIN', 'directo': 'DIRECTO_DOMAIN'}
 
 
 def load_host(selector, root=ROOT):
