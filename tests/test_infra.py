@@ -34,6 +34,7 @@ class HostTest(unittest.TestCase):
             self.assertIn('inkmind-upstream:80', text)
             self.assertIn('{$INKMIND_DOMAIN}', text)
             self.assertIn('directo-upstream:80', text)
+            self.assertIn('directo-api-upstream:3001', text)
             self.assertIn('{$DIRECTO_DOMAIN}', text)
             self.assertIn('flush_interval -1', text)
             self.assertNotIn('echooo',text)

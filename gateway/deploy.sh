@@ -6,6 +6,7 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 target=${1:?Usage: deploy.sh HOST_TARGET CADDY_IMAGE_DIGEST}
 image=${2:?Set immutable Caddy image}
 gateway_root=${GATEWAY_ROOT:-/opt/gateway}
+python3 "$root/scripts/render_host.py" "$target" --check --require-services
 [[ -r "$gateway_root/deployment-target" && "$(cat "$gateway_root/deployment-target")" == "$target" ]] || { echo 'This host does not match the selected gateway target.' >&2; exit 1; }
 python3 "$root/scripts/validate_image.py" "$image"
 [[ -d "$gateway_root/config" && -d "$gateway_root/releases" && -r "$gateway_root/gateway.env" ]]

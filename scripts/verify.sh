@@ -2,7 +2,7 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 cd "$root"
-for script in gateway/*.sh host/*.sh scripts/*.sh; do bash -n "$script"; done
+for script in gateway/*.sh host/*.sh scripts/*.sh tests/*.sh; do bash -n "$script"; done
 python3 -m unittest discover -s tests
 candidate=$(mktemp -d)
 trap 'rm -rf "$candidate"' EXIT
@@ -11,6 +11,11 @@ docker compose --env-file gateway/gateway.env.example -f gateway/compose.yaml co
 docker run --rm -e ECHOOO_ADDRESS=echooo.example.com -e SHADOWTABLE_DOMAIN=table.example.com -e WENLV_DOMAIN=wenlv.example.com -e ACME_EMAIL=admin@example.com -v "$root/gateway/Caddyfile:/etc/caddy/Caddyfile:ro" gateway-check caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 for manifest in hosts/*/*/*/host.json; do
     target=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["target"])' "$manifest")
+    python3 scripts/render_host.py "$target" --check
+    if ! python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))["services"] else 1)' "$manifest"; then
+        printf 'Inventory-only host: %s (no gateway to validate)\n' "$target"
+        continue
+    fi
     python3 scripts/render_host.py "$target" "$candidate/$target"
     python3 - "$manifest" "$candidate/$target/example.env" <<'ENV'
 from pathlib import Path
@@ -21,3 +26,4 @@ ENV
     docker compose --env-file "$candidate/$target/example.env" -f "$candidate/$target/compose.yaml" config --format json | python3 scripts/check_gateway_config.py
     docker run --rm --env-file "$candidate/$target/example.env" -v "$candidate/$target/Caddyfile:/etc/caddy/Caddyfile:ro" gateway-check caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 done
+bash tests/test_directo_gateway.sh gateway-check

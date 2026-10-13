@@ -1,0 +1,8 @@
+{
+  "target": "tencent-shanghai-01",
+  "cloud": "tencent",
+  "location": "shanghai",
+  "region": "ap-shanghai",
+  "environment": "prod",
+  "services": []
+}

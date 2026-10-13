@@ -13,6 +13,14 @@ sys.exit(0 if match and tuple(map(int, match.groups())) >= (2, 24, 0) else 1)
 PY
 }
 
+validate_bootstrap_arguments() {
+    local deploy_user=${1-} services=${2-} host_target=${3-} app_environment=${4-}
+    [[ "$deploy_user" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo 'Invalid deployment user' >&2; return 1; }
+    [[ "$host_target" =~ ^(aws|aliyun|tencent)-([a-z0-9]+)-([0-9]{2})$ ]] || { echo 'Use an aws, aliyun or tencent host target ID' >&2; return 1; }
+    [[ "$app_environment" =~ ^(prod|staging)$ ]] || { echo 'Use prod or staging for the application environment' >&2; return 1; }
+    [[ -z "$services" || "$services" =~ ^(echooo|shadowtable|wenlv|just-works|inkmind|directo)(,(echooo|shadowtable|wenlv|just-works|inkmind|directo))*$ ]] || { echo 'Use supported comma-separated services, or an empty string for an inventory-only host' >&2; return 1; }
+}
+
 install_runtime() {
     local os_release=${1:-/etc/os-release}
     local ID='' VERSION_ID='' VERSION_CODENAME=''
@@ -69,15 +77,12 @@ install_runtime() {
 
 [[ "$EUID" == 0 ]] || { echo 'Run bootstrap with sudo/root' >&2; exit 1; }
 deploy_user=${1:-deploy}
-services=${2:-shadowtable}
+services=${2-shadowtable} # An explicit empty argument prepares the gateway directories only.
 host_target=${3:?Usage: bootstrap.sh DEPLOY_USER SERVICES HOST_TARGET [APP_ENVIRONMENT]}
 app_environment=${4:-prod}
-[[ "$host_target" =~ ^(aws|aliyun)-([a-z0-9]+)-([0-9]{2})$ ]]
-cloud=${BASH_REMATCH[1]}
-[[ "$app_environment" =~ ^(prod|staging)$ ]]
+validate_bootstrap_arguments "$deploy_user" "$services" "$host_target" "$app_environment"
+cloud=${host_target%%-*}
 app_target="$cloud-$app_environment"
-[[ "$deploy_user" =~ ^[a-z_][a-z0-9_-]*$ ]]
-[[ "$services" =~ ^(echooo|shadowtable|wenlv|just-works|inkmind|directo)(,(echooo|shadowtable|wenlv|just-works|inkmind|directo))*$ ]]
 install_runtime
 systemctl enable --now docker
 id "$deploy_user" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$deploy_user"
@@ -89,20 +94,22 @@ else
     printf '%s\n' "$host_target" > /opt/gateway/deployment-target
     chown "$deploy_user:$deploy_user" /opt/gateway/deployment-target
 fi
-IFS=',' read -r -a app_services <<< "$services"
-for service in "${app_services[@]}"; do
-    install -d -o "$deploy_user" -g "$deploy_user" -m 700 "/opt/$service" "/opt/$service/releases"
-    # The static just-works image has no persistent application data.
-    if [[ "$service" != just-works ]]; then
-        install -d -o "$deploy_user" -g "$deploy_user" -m 700 "/opt/$service/backups"
-        # Preserve owners of existing data. Business-specific setup stays in its repository.
-        if [[ ! -d "/opt/$service/data" ]]; then install -d -o 1000 -g 1000 -m 700 "/opt/$service/data"; fi
-    fi
-    if [[ -f "/opt/$service/deployment-target" ]]; then
-        [[ "$(cat "/opt/$service/deployment-target")" == "$app_target" ]] || { echo 'Existing application has a different deployment target' >&2; exit 1; }
-    else
-        printf '%s\n' "$app_target" > "/opt/$service/deployment-target"
-        chown "$deploy_user:$deploy_user" "/opt/$service/deployment-target"
-    fi
-done
+if [[ -n "$services" ]]; then
+    IFS=',' read -r -a app_services <<< "$services"
+    for service in "${app_services[@]}"; do
+        install -d -o "$deploy_user" -g "$deploy_user" -m 700 "/opt/$service" "/opt/$service/releases"
+        # The static just-works image has no persistent application data.
+        if [[ "$service" != just-works ]]; then
+            install -d -o "$deploy_user" -g "$deploy_user" -m 700 "/opt/$service/backups"
+            # Preserve owners of existing data. Business-specific setup stays in its repository.
+            if [[ ! -d "/opt/$service/data" ]]; then install -d -o 1000 -g 1000 -m 700 "/opt/$service/data"; fi
+        fi
+        if [[ -f "/opt/$service/deployment-target" ]]; then
+            [[ "$(cat "/opt/$service/deployment-target")" == "$app_target" ]] || { echo 'Existing application has a different deployment target' >&2; exit 1; }
+        else
+            printf '%s\n' "$app_target" > "/opt/$service/deployment-target"
+            chown "$deploy_user:$deploy_user" "/opt/$service/deployment-target"
+        fi
+    done
+fi
 printf 'Bootstrap ready. Add the deployment public key to this account, log in again, and configure gateway.env and business env files.\n'

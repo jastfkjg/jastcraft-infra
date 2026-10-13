@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "${GATEWAY_TARGET:-}" == "${HOST_TARGET:?}" ]] || { echo 'Set GATEWAY_TARGET to the host ID in the selected Environment.' >&2; exit 1; }
+python3 scripts/render_host.py "$HOST_TARGET" --check --require-services
 [[ "${SSH_HOST:-}" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ && "${SSH_USER:-}" =~ ^[a-z_][a-z0-9_-]*$ ]]
 SSH_PORT=${SSH_PORT:-22}
 [[ "$SSH_PORT" =~ ^[0-9]+$ ]] && (( SSH_PORT >= 1 && SSH_PORT <= 65535 ))

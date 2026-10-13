@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVICES = {'echooo': 'ECHOOO_ADDRESS', 'shadowtable': 'SHADOWTABLE_DOMAIN', 'wenlv': 'WENLV_DOMAIN', 'just-works': 'JUST_WORKS_DOMAIN', 'inkmind': 'INKMIND_DOMAIN', 'directo': 'DIRECTO_DOMAIN'}
 
 
-def load_host(selector, root=ROOT):
+def load_host(selector, root=ROOT, require_services=False):
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', selector):
         raise ValueError('Select a host target ID from hosts/**/host.json')
     matches = []
@@ -20,7 +20,7 @@ def load_host(selector, root=ROOT):
         raise ValueError('Unknown or duplicate host target: ' + selector)
     path, config = matches[0]
     cloud, location, number = path.relative_to(root / 'hosts').parts[:3]
-    if (cloud not in {'aws', 'aliyun'} or config['cloud'] != cloud
+    if (cloud not in {'aws', 'aliyun', 'tencent'} or config['cloud'] != cloud
             or config['location'] != location or not re.fullmatch(r'[a-z0-9]+', location)
             or not re.fullmatch(r'[0-9]{2}', number) or selector != f'{cloud}-{location}-{number}'):
         raise ValueError('Host target must match its cloud/location/number directory')
@@ -29,13 +29,16 @@ def load_host(selector, root=ROOT):
     if not re.fullmatch(r'[a-z][a-z0-9-]+', config['region']):
         raise ValueError('Configure the cloud region for this host')
     services = config['services']
-    if not services or len(set(services)) != len(services) or any(s not in SERVICES for s in services):
-        raise ValueError('Configure a nonempty, unique list of supported services')
+    if (not isinstance(services, list) or any(not isinstance(s, str) or s not in SERVICES for s in services)
+            or len(set(services)) != len(services)):
+        raise ValueError('Configure a unique list of supported services')
+    if require_services and not services:
+        raise ValueError('Host has no services; add services to host.json before deploying the gateway')
     return path.parent, config
 
 
 def render(selector, output, gateway_root='/opt/gateway', root=ROOT):
-    _, host = load_host(selector, root)
+    _, host = load_host(selector, root, require_services=True)
     if not Path(gateway_root).is_absolute():
         raise ValueError('Gateway root must be absolute')
     services = host['services']
@@ -71,10 +74,17 @@ def render(selector, output, gateway_root='/opt/gateway', root=ROOT):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('target')
-    parser.add_argument('output')
+    parser.add_argument('output', nargs='?')
     parser.add_argument('--gateway-root', default='/opt/gateway')
+    parser.add_argument('--check', action='store_true', help='Validate inventory without rendering a gateway')
+    parser.add_argument('--require-services', action='store_true', help='Reject an inventory-only host')
     args = parser.parse_args()
+    if not args.check and args.output is None:
+        parser.error('Set an output directory or use --check')
     try:
-        render(args.target, args.output, args.gateway_root)
+        if args.check:
+            load_host(args.target, require_services=args.require_services)
+        else:
+            render(args.target, args.output, args.gateway_root)
     except (ValueError, KeyError, TypeError) as error:
         parser.error(str(error))
