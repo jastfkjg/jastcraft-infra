@@ -4,5 +4,5 @@
   "location": "shanghai",
   "region": "ap-shanghai",
   "environment": "prod",
-  "services": []
+  "services": ["realquest"]
 }

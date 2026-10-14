@@ -37,22 +37,32 @@ def populated_checkout(directory, services):
 
 
 class TencentInventoryTest(unittest.TestCase):
-    def test_empty_host_is_registered_with_the_correct_region(self):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.empty_root, _, _ = populated_checkout(temporary.name, [])
+
+    def test_host_is_registered_with_realquest_and_the_correct_region(self):
         folder, host = load_host(TARGET)
         self.assertEqual(folder, ROOT / 'hosts/tencent/shanghai/01')
         self.assertEqual(host['region'], 'ap-shanghai')
         self.assertEqual(host['environment'], 'prod')
-        self.assertEqual(host['services'], [])
+        self.assertEqual(host['services'], ['realquest'])
+        with tempfile.TemporaryDirectory() as directory:
+            compose = render(TARGET, directory)
+            self.assertEqual(set(compose['networks']), {'realquest'})
+            self.assertEqual(set(compose['services']['caddy']['environment']), {'ACME_EMAIL', 'REALQUEST_DOMAIN'})
+            self.assertIn('realquest-upstream:80', (Path(directory) / 'Caddyfile').read_text())
 
     def test_empty_host_cannot_render_or_create_output_files(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'candidate'
             with self.assertRaisesRegex(ValueError, 'Host has no services'):
-                render(TARGET, output)
+                render(TARGET, output, root=self.empty_root)
             self.assertFalse(output.exists())
 
     def test_check_cli_accepts_inventory_and_rejects_empty_deployment(self):
-        command = [sys.executable, str(ROOT / 'scripts/render_host.py'), TARGET, '--check']
+        command = [sys.executable, str(self.empty_root / 'scripts/render_host.py'), TARGET, '--check']
         self.assertEqual(subprocess.run(command, capture_output=True).returncode, 0)
         result = subprocess.run(command + ['--require-services'], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
@@ -94,8 +104,11 @@ class TencentInventoryTest(unittest.TestCase):
 
 class TencentPublishTest(unittest.TestCase):
     def test_empty_host_fails_before_any_remote_connection(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        empty_root, _, _ = populated_checkout(temporary.name, [])
         result = subprocess.run(['bash', str(ROOT / 'scripts/publish_gateway.sh')],
-                                cwd=ROOT, capture_output=True, text=True,
+                                cwd=empty_root, capture_output=True, text=True,
                                 env=dict(os.environ, HOST_TARGET=TARGET, GATEWAY_TARGET=TARGET,
                                          SSH_HOST='', SSH_KEY='', SSH_KNOWN_HOSTS=''))
         self.assertNotEqual(result.returncode, 0)
@@ -112,10 +125,12 @@ class TencentPublishTest(unittest.TestCase):
     def test_empty_host_preserves_existing_gateway_without_docker_calls(self):
         case = self.gateway_fixture()
         before = {path.name: path.read_bytes() for path in (case.gateway / 'config').iterdir()}
-        result, calls = case.deploy()
+        empty_root, _, _ = populated_checkout(case.base / 'empty-checkout', [])
+        result = subprocess.run(['bash', str(empty_root / 'gateway/deploy.sh'), TARGET, IMAGE],
+                                env=case.env, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Host has no services', result.stderr)
-        self.assertEqual(calls, [])
+        self.assertFalse((case.base / 'calls').exists())
         self.assertEqual(before, {path.name: path.read_bytes() for path in (case.gateway / 'config').iterdir()})
         self.assertEqual(list((case.gateway / 'releases').iterdir()), [])
 
@@ -145,7 +160,7 @@ class TencentBootstrapTest(unittest.TestCase):
     def test_validation_accepts_tencent_and_retains_existing_clouds(self):
         wrapper = 'source "$1"; validate_bootstrap_arguments deploy "$2" "$3" "$4"'
         for target in [TARGET, 'aws-singapore-01', 'aliyun-beijing-01']:
-            for services in ['', 'directo,shadowtable']:
+            for services in ['', 'directo,shadowtable', 'realquest']:
                 with self.subTest(target=target, services=services):
                     result = subprocess.run(['bash', '-c', wrapper, 'test',
                                              str(ROOT / 'host/bootstrap.sh'), services, target, 'prod'],

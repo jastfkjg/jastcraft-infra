@@ -1,0 +1,3 @@
+{$REALQUEST_DOMAIN} {
+    reverse_proxy realquest-upstream:80
+}

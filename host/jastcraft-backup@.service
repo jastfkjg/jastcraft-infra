@@ -1,5 +1,5 @@
 [Unit]
-Description=Snapshot %i SQLite and upload to private cloud storage
+Description=Snapshot %i database and upload to private cloud storage
 After=docker.service network-online.target
 Wants=network-online.target
 [Service]

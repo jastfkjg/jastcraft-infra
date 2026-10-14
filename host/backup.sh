@@ -12,18 +12,24 @@ case "${BACKUP_CLOUD:?Set BACKUP_CLOUD}" in
     *) echo 'BACKUP_CLOUD must be aws, aliyun or tencent' >&2; exit 1 ;;
 esac
 service=${BACKUP_SERVICE:-shadowtable}
+extension=sqlite
 case "$service" in
     shadowtable) database=/opt/shadowtable/data/shadowtable.sqlite ;;
     inkmind) database=/opt/inkmind/data/inkmind.db ;;
+    realquest) extension=dump ;;
     *) echo 'Unsupported backup service' >&2; exit 1 ;;
 esac
 exec 9>"/opt/$service/deploy.lock"
 flock -w 120 9
-snapshot=$(python3 /usr/local/lib/jastcraft/backup-sqlite.py "$database" "/opt/$service/backups" --prefix "$service")
+if [[ "$service" == realquest ]]; then
+    snapshot=$(bash /usr/local/lib/jastcraft/backup-postgres.sh "/opt/$service")
+else
+    snapshot=$(python3 /usr/local/lib/jastcraft/backup-sqlite.py "$database" "/opt/$service/backups" --prefix "$service")
+fi
 case "$BACKUP_CLOUD" in
     aws) aws s3 cp "$snapshot" "${BACKUP_DESTINATION%/}/$(basename "$snapshot")" --only-show-errors ;;
     aliyun) ossutil cp "$snapshot" "${BACKUP_DESTINATION%/}/$(basename "$snapshot")" ;;
     tencent) coscli cp "$snapshot" "${BACKUP_DESTINATION%/}/$(basename "$snapshot")" --endpoint "$BACKUP_COS_ENDPOINT" ;;
 esac
 # Retain 14 days locally only after the remote upload succeeds.
-find "/opt/$service/backups" -type f -name "$service-*.sqlite" -mtime +14 -delete
+find "/opt/$service/backups" -type f -name "$service-*.$extension" -mtime +14 -delete

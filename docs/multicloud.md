@@ -16,9 +16,9 @@ infra 网关镜像构建继续使用现有仓库级 Variables `ACR_REGISTRY` / `
 | --- | --- | --- |
 | 新加坡 EC2 | `aws-prod` | `aws-singapore-01` |
 | 北京 ECS | `aliyun-prod` | `aliyun-beijing-01` |
-| 上海腾讯云轻量 | 尚未配置业务部署目标 | `tencent-shanghai-01` |
+| 上海腾讯云轻量 | RealQuest `tencent-prod`（待配置） | `tencent-shanghai-01` |
 
-AWS/阿里云两台已有业务；腾讯云主机目前仅登记，服务清单为空，尚未初始化或部署。没有独立 staging 服务器。主机 ID 不包含业务或环境；主机清单中的 `services`、`environment` 与 `region` 分别描述承载业务、业务环境和云 API 地域。
+AWS/阿里云两台已有业务；腾讯云主机清单已配置 RealQuest，服务器初始化及业务部署后续执行。没有独立 staging 服务器。主机 ID 不包含业务或环境；主机清单中的 `services`、`environment` 与 `region` 分别描述承载业务、业务环境和云 API 地域。
 
 在每个仓库建立需要的 Environments，将部署分支限制为 main。每个 Environment 配置 `SSH_HOST`、`SSH_PORT`（默认22）、`SSH_USER`、`SSH_KEY`、`SSH_KNOWN_HOSTS` Secrets。host key 通过云控制台/可信管理连接核验；非22端口使用 `[host]:port` 格式。不要在仓库级保存一组共用 SSH Secrets，以免多个目标回落到同一服务器。
 
@@ -103,13 +103,13 @@ terraform output
 
 ### 2.4 接入已有腾讯云轻量应用服务器
 
-上海主机 `tencent-shanghai-01` 使用 `ap-shanghai`，公网 IP 为 `124.220.81.113`，系统为 Ubuntu 24.04。清单 `hosts/tencent/shanghai/01/host.json` 当前设置 `services=[]`，只登记部署目标。腾讯云主机支持、空清单检查和 COS 备份入口已具备，服务器初始化、GitHub Environment 设置及业务发布后续单独执行，详见[腾讯云轻量服务器接入指南](tencent-lighthouse.md)。不要把现有 AWS/阿里云 Terraform stack 用于这台轻量服务器。
+上海主机 `tencent-shanghai-01` 使用 `ap-shanghai`，公网 IP 为 `124.220.81.113`，系统为 Ubuntu 24.04。清单 `hosts/tencent/shanghai/01/host.json` 已设置 `services=["realquest"]`，域名模板为 `realquest.jastcraft.com`。主机初始化、GitHub Environment 设置及业务发布后续单独执行，详见[腾讯云轻量服务器接入指南](tencent-lighthouse.md)及[RealQuest 接入指南](realquest.md)。不要把现有 AWS/阿里云 Terraform stack 用于这台轻量服务器。
 
 ## 3. 配置并发布每台主机的网关
 
 阿里云清单位于 `hosts/aliyun/beijing/01/host.json`，当前包含 `shadowtable`、`just-works`、`inkmind` 和 `directo`；AWS 清单位于 `hosts/aws/singapore/01/host.json`，当前包含三项业务。主机名不限制可承载的业务。真实域名放在服务器env，不放清单。
 
-腾讯云清单当前为空，`python3 scripts/render_host.py tencent-shanghai-01 --check` 可校验登记信息。`render`、`reload` 和 `Deploy gateway` 会拒绝空服务清单，发布入口在建立 SSH 连接和操作 Docker 前停止。首次发布前，先填写实际 `services`、对应域名和业务网络配置；不要为占位主机填入无关业务。
+腾讯云清单已选择 RealQuest，`python3 scripts/render_host.py tencent-shanghai-01 --check --require-services` 可校验发布目标。仍允许其他主机使用空清单先登记；`render`、`reload` 和 `Deploy gateway` 会拒绝空服务清单，发布入口在建立 SSH 连接和操作 Docker 前停止。RealQuest 前端通过 `realquest_proxy` / `realquest-upstream:80` 接入；后端和 PostgreSQL 留在业务私有网络。
 
 新主机复制其示例到 `/opt/gateway/gateway.env`（以下在已有本仓库检出的服务器执行）：
 
@@ -157,7 +157,7 @@ sudo cp host/backup.env.example /etc/jastcraft/backup.env
 sudo chmod 600 /etc/jastcraft/backup.env
 ```
 
-编辑 `BACKUP_CLOUD=aws|aliyun|tencent`，对应 `BACKUP_DESTINATION=s3://.../shadowtable/prod`、`oss://.../shadowtable/prod` 或 `cos://.../shadowtable/prod`。现有业务主机的环境均为 prod，各自备份桶/路径独立。安装对应官方CLI [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) / [ossutil](https://help.aliyun.com/zh/oss/developer-reference/ossutil-overview/) / [COSCLI](https://cloud.tencent.com/document/product/436/63144)，配置对应存储的访问凭据，先用上传命令验证目标前缀权限。AWS/阿里云可使用已绑定的 IAM/RAM 实例角色；腾讯云 COS 使用 `host/backup-tencent.env.example`，显式设置 `BACKUP_COS_ENDPOINT=cos.ap-shanghai.myqcloud.com` 并配置 COSCLI 凭据，不假定轻量主机已有实例角色。systemd任务以root运行，CLI和凭据配置也必须在root环境可用。不要把云AccessKey写进仓库。空主机没有业务数据库，不运行备份任务或启用备份 timer。
+编辑 `BACKUP_CLOUD=aws|aliyun|tencent`，对应 `BACKUP_DESTINATION=s3://.../<服务>/prod`、`oss://.../<服务>/prod` 或 `cos://.../<服务>/prod`。现有业务主机的环境均为 prod，各自备份桶/路径独立。安装对应官方CLI [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) / [ossutil](https://help.aliyun.com/zh/oss/developer-reference/ossutil-overview/) / [COSCLI](https://cloud.tencent.com/document/product/436/63144)，配置对应存储的访问凭据，先用上传命令验证目标前缀权限。AWS/阿里云可使用已绑定的 IAM/RAM 实例角色；腾讯云 COS 显式设置 `BACKUP_COS_ENDPOINT=cos.ap-shanghai.myqcloud.com` 并配置 COSCLI 凭据，不假定轻量主机已有实例角色。ShadowTable/InkMind 使用 SQLite 示例，RealQuest 使用 `host/backup-realquest.env.example` 和 `jastcraft-backup@realquest.timer`；详见[RealQuest 备份指南](realquest.md)。systemd任务以root运行，CLI和凭据配置也必须在root环境可用。不要把云AccessKey写进仓库。没有业务数据库时不运行备份任务或启用备份 timer。
 
 ```bash
 sudo systemctl start jastcraft-backup.service
@@ -167,7 +167,7 @@ sudo systemctl enable --now jastcraft-backup.timer
 systemctl list-timers jastcraft-backup.timer jastcraft-health.timer
 ```
 
-备份通过SQLite backup API生成一致快照、验证quick_check、权限600，随后上传对象存储。持有与发布相同的flock锁，上传成功后保留14天本地在线备份。AWS/阿里云 Terraform 创建的备份桶默认保留90天；手动创建的桶（含腾讯云 COS）需自行设置版本控制和生命周期。每日约UTC03:15（北京时间11:15），随机延迟0–15分钟。迁移用停写的整个数据目录归档；在线恢复可以使用这里生成的单文件快照，先停止应用，隔离旧WAL/SHM并恢复权限，再启动并验证，不直接覆盖运行中数据库。
+ShadowTable/InkMind 通过 SQLite backup API 生成一致快照并验证 quick_check；RealQuest 通过 PostgreSQL `pg_dump --format=custom` 生成一致 `.dump` 并验证 `pg_restore --list`。文件权限600，随后上传对象存储。持有与发布相同的flock锁，上传成功后保留14天本地在线备份。AWS/阿里云 Terraform 创建的备份桶默认保留90天；手动创建的桶（含腾讯云 COS）需自行设置版本控制和生命周期。每日约UTC03:15（北京时间11:15），随机延迟0–15分钟。SQLite 迁移用停写的完整数据目录归档；恢复单文件快照前先停止应用并隔离旧WAL/SHM。PostgreSQL 备份先恢复到独立数据库验证，再决定切换，不直接覆盖运行中的生产数据库。
 
 安装operations默认仅启用五分钟一次的Docker/disk检查：85%磁盘使用或unhealthy容器使service失败并写journal。备份timer不会在未配置凭据时自动启动。当前检查不包含已停止业务、证书到期、外部HTTP可用性或自动通知；可以在云监控中接入systemd失败/外部HTTPS探测。定期检查日志与备份对象，安排恢复演练。
 

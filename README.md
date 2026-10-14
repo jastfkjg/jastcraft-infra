@@ -13,7 +13,7 @@
 
 - `aws-singapore-01`：新加坡 EC2（`ap-southeast-1`），当前网关接入 echooo、ShadowTable、文旅拾光。
 - `aliyun-beijing-01`：北京 ECS（`cn-beijing`），当前网关接入 ShadowTable、just-works、InkMind、Directo。
-- `tencent-shanghai-01`：上海轻量应用服务器（`ap-shanghai`），公网 IP `124.220.81.113`，Ubuntu 24.04；当前仅登记主机，`services=[]`，尚未初始化或部署。
+- `tencent-shanghai-01`：上海轻量应用服务器（`ap-shanghai`），公网 IP `124.220.81.113`，Ubuntu 24.04；已配置 RealQuest 网关接入，域名 `realquest.jastcraft.com`，服务器初始化和实际部署后续执行。
 
 主机 ID 按云厂商、地域、编号命名，不绑定业务或环境；`host.json` 中的 `services` 决定承载业务，`environment` 单独描述业务发布环境（当前均配置为 `prod`）。新增业务不需要改主机 ID。空服务清单可通过主机校验，但不渲染或发布网关；发布入口在 SSH/Docker 操作前拒绝空主机。
 
@@ -23,7 +23,7 @@
 
 第一次使用、GitHub 配置、现有 EC2 接入、ECS 初始化、网关发布和备份启用，按照 **[多云操作指南](docs/multicloud.md)** 执行。
 
-上海腾讯云轻量主机的登记状态、后续初始化、GitHub Environment 和 COS 备份配置见 **[腾讯云轻量服务器接入指南](docs/tencent-lighthouse.md)**。备份支持 S3、OSS、COS；主机与备份存储可分别选择云厂商。
+上海腾讯云轻量主机的登记状态、后续初始化、GitHub Environment 和 COS 备份配置见 **[腾讯云轻量服务器接入指南](docs/tencent-lighthouse.md)**，RealQuest 接入见 **[RealQuest 网关与备份指南](docs/realquest.md)**。备份支持 SQLite/PostgreSQL 快照上传 S3、OSS、COS；主机与备份存储可分别选择云厂商。
 
 现有 EC2/ECS 不需要重建或重新初始化。主机改名时按操作指南更新 GitHub Environment 和服务器标记，保留真实证书卷及已有 Terraform state 配置。原 `gateway/compose.sh` 在尚未启用主机清单时继续使用旧配置；启用后自动读取 `/opt/gateway/config/compose.yaml`。原证书卷名字必须保留。历史首次拆分方案见 [旧网关迁移指南](docs/legacy-gateway-migration.md)。
 

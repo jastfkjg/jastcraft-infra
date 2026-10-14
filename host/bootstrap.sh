@@ -18,7 +18,7 @@ validate_bootstrap_arguments() {
     [[ "$deploy_user" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo 'Invalid deployment user' >&2; return 1; }
     [[ "$host_target" =~ ^(aws|aliyun|tencent)-([a-z0-9]+)-([0-9]{2})$ ]] || { echo 'Use an aws, aliyun or tencent host target ID' >&2; return 1; }
     [[ "$app_environment" =~ ^(prod|staging)$ ]] || { echo 'Use prod or staging for the application environment' >&2; return 1; }
-    [[ -z "$services" || "$services" =~ ^(echooo|shadowtable|wenlv|just-works|inkmind|directo)(,(echooo|shadowtable|wenlv|just-works|inkmind|directo))*$ ]] || { echo 'Use supported comma-separated services, or an empty string for an inventory-only host' >&2; return 1; }
+    [[ -z "$services" || "$services" =~ ^(echooo|shadowtable|wenlv|just-works|inkmind|directo|realquest)(,(echooo|shadowtable|wenlv|just-works|inkmind|directo|realquest))*$ ]] || { echo 'Use supported comma-separated services, or an empty string for an inventory-only host' >&2; return 1; }
 }
 
 install_runtime() {
