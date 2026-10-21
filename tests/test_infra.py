@@ -146,6 +146,7 @@ if 'config' in args and 'json' in args:
 if 'pull' in args and mode=='pull': sys.exit(1)
 if 'run' in args and mode=='validate': sys.exit(1)
 if 'up' in args and mode=='startup' and values.get('CADDY_IMAGE','').endswith('a'*64): sys.exit(1)
+if 'reload' in args and mode=='reload': sys.exit(1)
 """
         (self.bin/'docker').write_text(stub); (self.bin/'docker').chmod(0o755)
         (self.bin/'flock').write_text('#!/bin/sh\nexit 0\n'); (self.bin/'flock').chmod(0o755)
@@ -186,6 +187,14 @@ if 'up' in args and mode=='startup' and values.get('CADDY_IMAGE','').endswith('a
         self.assertNotEqual(result.returncode,0)
         self.assertFalse((self.gateway/'config/compose.yaml').exists())
         self.assertEqual(sum('up' in c for c in calls),1)
+    def test_failed_reload_restores_configuration_and_does_not_promote(self):
+        result,calls=self.deploy('reload')
+        self.assertNotEqual(result.returncode,0)
+        self.assertEqual((self.gateway/'config/Caddyfile').read_text(),self.old_caddy)
+        self.assertIn(OLD_IMAGE,(self.gateway/'config/image.env').read_text())
+        self.assertFalse((self.gateway/'current').exists())
+        self.assertEqual(sum('up' in c for c in calls),2)
+        self.assertFalse(any('app' in c or 'db' in c for c in calls))
     def test_wrong_host_target_rejected_before_docker(self):
         (self.gateway/'deployment-target').write_text('aws-singapore-01\n')
         result,calls=self.deploy()
