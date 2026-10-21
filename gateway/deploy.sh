@@ -67,6 +67,8 @@ for file in Caddyfile compose.yaml image.env host; do
     mv "$gateway_root/config/$file.next" "$gateway_root/config/$file"
 done
 GATEWAY_ROOT="$gateway_root" bash "$root/gateway/compose.sh" up -d --wait --wait-timeout 120 caddy
+# A bind-mounted Caddyfile change does not recreate an otherwise unchanged container.
+GATEWAY_ROOT="$gateway_root" bash "$root/gateway/compose.sh" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 [[ -z "$previous" ]] || ln -sfn "$previous" "$gateway_root/previous"
 ln -sfn "$candidate" "$gateway_root/current"
 switched=false

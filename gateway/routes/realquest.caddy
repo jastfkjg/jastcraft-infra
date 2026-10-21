@@ -1,3 +1,5 @@
 {$REALQUEST_DOMAIN} {
+    @static path /releases/*
+    encode @static zstd gzip
     reverse_proxy realquest-upstream:80
 }
