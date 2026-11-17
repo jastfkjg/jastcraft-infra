@@ -42,17 +42,24 @@ class TencentInventoryTest(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.empty_root, _, _ = populated_checkout(temporary.name, [])
 
-    def test_host_is_registered_with_realquest_and_the_correct_region(self):
+    def test_host_renders_both_business_routes_for_shanghai(self):
         folder, host = load_host(TARGET)
         self.assertEqual(folder, ROOT / 'hosts/tencent/shanghai/01')
         self.assertEqual(host['region'], 'ap-shanghai')
         self.assertEqual(host['environment'], 'prod')
-        self.assertEqual(host['services'], ['realquest'])
+        self.assertEqual(host['services'], ['realquest', 'echooo'])
+        self.assertIn('ECHOOO_ADDRESS=', (folder / 'gateway.env.example').read_text())
         with tempfile.TemporaryDirectory() as directory:
             compose = render(TARGET, directory)
-            self.assertEqual(set(compose['networks']), {'realquest'})
-            self.assertEqual(set(compose['services']['caddy']['environment']), {'ACME_EMAIL', 'REALQUEST_DOMAIN'})
-            self.assertIn('realquest-upstream:80', (Path(directory) / 'Caddyfile').read_text())
+            self.assertEqual(set(compose['networks']), {'realquest', 'echooo'})
+            self.assertEqual(compose['networks']['echooo'], {'external': True, 'name': 'echooo_proxy'})
+            self.assertEqual(set(compose['services']['caddy']['environment']),
+                             {'ACME_EMAIL', 'REALQUEST_DOMAIN', 'ECHOOO_ADDRESS'})
+            routes = (Path(directory) / 'Caddyfile').read_text()
+            self.assertIn('realquest-upstream:80', routes)
+            self.assertIn('echooo-upstream:8000', routes)
+            self.assertIn('/api/auth/setup', routes)
+            self.assertIn('flush_interval -1', routes)
 
     def test_empty_host_cannot_render_or_create_output_files(self):
         with tempfile.TemporaryDirectory() as directory:
