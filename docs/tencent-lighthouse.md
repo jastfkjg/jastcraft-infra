@@ -10,9 +10,9 @@
 | 公网 IPv4 | `124.220.81.113` |
 | 系统 | Ubuntu 24.04 |
 | 业务环境 | `prod` |
-| 已选择服务 | RealQuest 和 Echooo，`services=["realquest", "echooo"]` |
+| 已选择服务 | RealQuest、Echooo、Wordroom |
 
-仓库已配置 RealQuest 和 Echooo 的网关路由，并提供 RealQuest 的 PostgreSQL/COS 备份支持。服务器初始化、GitHub Secrets、实际 DNS/备案及业务部署后续执行。腾讯云资源采用已购主机接入，本仓库目前没有腾讯云 Terraform 资源模块。RealQuest 接入细节见[网关与备份指南](realquest.md)。
+网关发布从主机清单生成 RealQuest、Echooo 和 Wordroom 的路由。Wordroom 使用固定域名 `wordroom.jastcraft.com`，通过现有 `realquest_proxy` 网络连接 `wordroom-upstream:3000`。腾讯云资源采用已购主机接入，本仓库目前没有腾讯云 Terraform 资源模块。RealQuest 接入与 PostgreSQL/COS 备份见[网关与备份指南](realquest.md)。
 
 可在本地校验当前发布配置：
 
@@ -36,7 +36,7 @@ sudo bash host/bootstrap.sh deploy realquest,echooo tencent-shanghai-01 prod
 
 ## 后续选择服务与发布
 
-1. 在 `hosts/tencent/shanghai/01/host.json` 的 `services` 填入实际承载服务，当前已选择 RealQuest 和 Echooo。现有路由支持 `echooo`、`shadowtable`、`wenlv`、`just-works`、`inkmind`、`directo`、`realquest`。新业务需要同时注册域名变量和路由，并扩展初始化脚本的服务白名单。
+1. 在 `hosts/tencent/shanghai/01/host.json` 的 `services` 填入实际承载服务。新增服务需要注册路由、所需的域名变量，并扩展初始化脚本的服务白名单。
 2. 将选中的服务列表作为 bootstrap 第二个参数再次运行，准备对应目录和 `tencent-prod` 业务标记。这里只准备主机目录，业务仓库需要另行增加自己的腾讯云发布目标；本仓库变更不会自动修改业务仓库。
 3. 在对应 `gateway.env.example` 中加入选中服务的域名变量，保留现有 `REALQUEST_DOMAIN`，将示例 `ECHOOO_ADDRESS=echooo.example.com` 换为 Echooo 的实际域名，与 `/opt/echooo/deploy.env` 中的 `DOMAIN` 一致。复制到服务器 `/opt/gateway/gateway.env`，填入邮箱和实际 Caddy 镜像引用，设为部署账号所有、权限600。镜像使用已经构建成功的完整 `registry/repository@sha256:...`，配置只读拉取凭据；可以复用现有 ACR。
 4. 在 infra 仓库手动创建 GitHub Environment `tencent-shanghai-01`，限制部署分支为 main。设置 Variable `GATEWAY_TARGET=tencent-shanghai-01`，以及 Secrets `SSH_HOST=124.220.81.113`、`SSH_PORT`（默认22）、`SSH_USER=deploy`、`SSH_KEY`、`SSH_KNOWN_HOSTS`。指纹从可信管理连接核验，不把私钥或密码提交到仓库。

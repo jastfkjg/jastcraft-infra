@@ -1,0 +1,4 @@
+wordroom.jastcraft.com {
+    encode zstd gzip
+    reverse_proxy wordroom-upstream:3000
+}
