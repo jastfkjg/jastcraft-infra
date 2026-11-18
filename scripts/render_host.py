@@ -5,7 +5,17 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVICES = {'echooo': 'ECHOOO_ADDRESS', 'shadowtable': 'SHADOWTABLE_DOMAIN', 'wenlv': 'WENLV_DOMAIN', 'just-works': 'JUST_WORKS_DOMAIN', 'inkmind': 'INKMIND_DOMAIN', 'directo': 'DIRECTO_DOMAIN', 'realquest': 'REALQUEST_DOMAIN'}
+SERVICES = {
+    'echooo': 'ECHOOO_ADDRESS',
+    'shadowtable': 'SHADOWTABLE_DOMAIN',
+    'wenlv': 'WENLV_DOMAIN',
+    'just-works': 'JUST_WORKS_DOMAIN',
+    'inkmind': 'INKMIND_DOMAIN',
+    'directo': 'DIRECTO_DOMAIN',
+    'realquest': 'REALQUEST_DOMAIN',
+    'wordroom': None,  # The Wordroom deployment uses a fixed public origin.
+}
+PROXY_NETWORKS = {'wordroom': 'realquest'}
 
 
 def load_host(selector, root=ROOT, require_services=False):
@@ -42,19 +52,23 @@ def render(selector, output, gateway_root='/opt/gateway', root=ROOT):
     if not Path(gateway_root).is_absolute():
         raise ValueError('Gateway root must be absolute')
     services = host['services']
+    networks = list(dict.fromkeys(PROXY_NETWORKS.get(service, service) for service in services))
     environment = {'ACME_EMAIL': '${ACME_EMAIL:?Set certificate contact email}'}
-    environment.update({SERVICES[s]: '${' + SERVICES[s] + ':?Set domain for this host}' for s in services})
+    for service in services:
+        domain_variable = SERVICES[service]
+        if domain_variable:
+            environment[domain_variable] = '${' + domain_variable + ':?Set domain for this host}'
     compose = {
         'name': 'jastcraft-gateway',
         'services': {'caddy': {
             'image': '${CADDY_IMAGE:?Set an immutable Caddy image}', 'restart': 'unless-stopped',
             'environment': environment, 'ports': ['80:80', '443:443'],
             'volumes': [gateway_root + '/config:/etc/caddy:ro', 'caddy_data:/data', 'caddy_config:/config'],
-            'networks': services,
+            'networks': networks,
             'healthcheck': {'test':['CMD','wget','-q','-O','/dev/null','http://127.0.0.1:2019/config/'], 'interval':'5s','timeout':'3s','retries':12},
             'logging': {'driver':'json-file','options':{'max-size':'10m','max-file':'3'}}
         }},
-        'networks': {s:{'external':True,'name':s+'_proxy'} for s in services},
+        'networks': {network: {'external': True, 'name': network + '_proxy'} for network in networks},
         'volumes': {
             'caddy_data': {'external':True,'name':'${CADDY_DATA_VOLUME:?Set host certificate volume}'},
             'caddy_config': {'external':True,'name':'${CADDY_CONFIG_VOLUME:?Set host config volume}'}
