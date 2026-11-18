@@ -10,9 +10,9 @@
 | 公网 IPv4 | `124.220.81.113` |
 | 系统 | Ubuntu 24.04 |
 | 业务环境 | `prod` |
-| 已选择服务 | RealQuest，`services=["realquest"]`；尚未实际部署 |
+| 已选择服务 | RealQuest 和 Echooo，`services=["realquest", "echooo"]` |
 
-仓库已准备 RealQuest 网关、主机目录和 PostgreSQL/COS 备份支持。服务器初始化、GitHub Secrets、实际 DNS/备案及业务部署后续执行。腾讯云资源采用已购主机接入，本仓库目前没有腾讯云 Terraform 资源模块。RealQuest 接入细节见[网关与备份指南](realquest.md)。
+仓库已配置 RealQuest 和 Echooo 的网关路由，并提供 RealQuest 的 PostgreSQL/COS 备份支持。服务器初始化、GitHub Secrets、实际 DNS/备案及业务部署后续执行。腾讯云资源采用已购主机接入，本仓库目前没有腾讯云 Terraform 资源模块。RealQuest 接入细节见[网关与备份指南](realquest.md)。
 
 可在本地校验当前发布配置：
 
@@ -26,22 +26,22 @@ python3 scripts/render_host.py tencent-shanghai-01 --check --require-services
 
 以下步骤留到实际初始化时执行。先更新系统、核验 SSH 主机指纹并配置管理连接。通过轻量服务器的[防火墙管理](https://cloud.tencent.com/document/product/1207/44577)设置访问规则：SSH 限制到管理/部署来源，80/443 用于未来的公网网关，业务和数据库不映射公网端口。部署通道使用 GitHub Actions 时需单独确保 runner 的 SSH 可达性。
 
-把本仓库通过可信渠道上传到服务器后，可初始化部署账号、Docker/Compose、网关及 RealQuest 目录：
+把本仓库通过可信渠道上传到服务器后，可初始化部署账号、Docker/Compose、网关、RealQuest 和 Echooo 目录：
 
 ```bash
-sudo bash host/bootstrap.sh deploy realquest tencent-shanghai-01 prod
+sudo bash host/bootstrap.sh deploy realquest,echooo tencent-shanghai-01 prod
 ```
 
 若仅准备主机而不创建业务目录，第二个参数可显式传入空字符串 `''`；省略参数仍沿用旧的 `shadowtable` 默认值。随后给 `deploy` 配置专用 SSH 公钥，重新登录并确认 `docker info`、`docker compose version` 正常。此脚本不启动网关或业务。
 
 ## 后续选择服务与发布
 
-1. 在 `hosts/tencent/shanghai/01/host.json` 的 `services` 填入实际承载服务，当前已选择 RealQuest。现有路由支持 `echooo`、`shadowtable`、`wenlv`、`just-works`、`inkmind`、`directo`、`realquest`。新业务需要同时注册域名变量和路由，并扩展初始化脚本的服务白名单。
+1. 在 `hosts/tencent/shanghai/01/host.json` 的 `services` 填入实际承载服务，当前已选择 RealQuest 和 Echooo。现有路由支持 `echooo`、`shadowtable`、`wenlv`、`just-works`、`inkmind`、`directo`、`realquest`。新业务需要同时注册域名变量和路由，并扩展初始化脚本的服务白名单。
 2. 将选中的服务列表作为 bootstrap 第二个参数再次运行，准备对应目录和 `tencent-prod` 业务标记。这里只准备主机目录，业务仓库需要另行增加自己的腾讯云发布目标；本仓库变更不会自动修改业务仓库。
-3. 在对应 `gateway.env.example` 中加入选中服务的域名变量，当前已配置 `REALQUEST_DOMAIN=realquest.jastcraft.com`。复制到服务器 `/opt/gateway/gateway.env`，填入邮箱和实际 Caddy 镜像引用，设为部署账号所有、权限600。镜像使用已经构建成功的完整 `registry/repository@sha256:...`，配置只读拉取凭据；可以复用现有 ACR。
+3. 在对应 `gateway.env.example` 中加入选中服务的域名变量，保留现有 `REALQUEST_DOMAIN`，将示例 `ECHOOO_ADDRESS=echooo.example.com` 换为 Echooo 的实际域名，与 `/opt/echooo/deploy.env` 中的 `DOMAIN` 一致。复制到服务器 `/opt/gateway/gateway.env`，填入邮箱和实际 Caddy 镜像引用，设为部署账号所有、权限600。镜像使用已经构建成功的完整 `registry/repository@sha256:...`，配置只读拉取凭据；可以复用现有 ACR。
 4. 在 infra 仓库手动创建 GitHub Environment `tencent-shanghai-01`，限制部署分支为 main。设置 Variable `GATEWAY_TARGET=tencent-shanghai-01`，以及 Secrets `SSH_HOST=124.220.81.113`、`SSH_PORT`（默认22）、`SSH_USER=deploy`、`SSH_KEY`、`SSH_KNOWN_HOSTS`。指纹从可信管理连接核验，不把私钥或密码提交到仓库。
 5. 域名在中国大陆提供网站服务前完成[腾讯云备案](https://cloud.tencent.com/document/product/243/18909)；已在其他接入商备案的域名办理[腾讯云接入备案](https://cloud.tencent.com/document/product/243/97669)。再配置 DNS、80/443 连通和业务自己的站点地址、回调/CORS 等配置。
-6. 手动运行 **Deploy gateway**，选择 `tencent-shanghai-01` 和已测试的不可变镜像。各业务仓库分别部署应用，使用本机 `<服务>_proxy` 网络和路由定义的 upstream 别名。网关发布不启停业务容器。先使用独立测试子域名完成 HTTPS 和业务验收，再接正式流量。
+6. 手动运行 **Deploy gateway**，选择 `tencent-shanghai-01` 和已测试的不可变镜像。各业务仓库分别部署应用，使用本机 `<服务>_proxy` 网络和路由定义的 upstream 别名。网关发布不启停业务容器。Echooo 使用 `echooo_proxy` 连接 `echooo-upstream:8000`，从 Echooo 仓库的 **Deploy** 工作流选择 `tencent-prod` 发布。先使用独立测试子域名完成 HTTPS 和业务验收，再接正式流量。
 
 ## 后续 COS 备份
 
